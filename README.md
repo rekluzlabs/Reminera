@@ -69,4 +69,10 @@ Reminera adheres to a strict "Your Data, Your Ownership" philosophy. All assets 
 
 ##  License
 
-Created and maintained by RekluzLabs.
+Copyright © 2026 Rekluz Labs. All rights reserved. *This code and its assets are the exclusive property of Rekluz Labs. Personal use only. No commercial use or redistribution permitted.Copyright © 2026 Rico (Rekluz Software). All Rights Reserved.
+
+This project and its associated assets (source code, graphics, and design) are the exclusive property of the creator.
+
+    Personal Use: You may view and fork this repository for personal, educational, and non-commercial study only.
+    Prohibited Use: No part of this project may be redistributed, modified for public use, or used in commercial products without express written permission.
+    No Warranty: This software is provided "as-is," without warranty of any kind.
