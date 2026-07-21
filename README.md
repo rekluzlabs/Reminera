@@ -1,8 +1,8 @@
 # Reminera
-<p align="center">  
-<img width="550" height="250" alt="Reminera" src="[[https://github.com/rekluzlabs/Reminera/blob/main/1784605706900.png](https://github.com/rekluzlabs/Reminera/blob/main/1784605706900.png)](https://github.com/rekluzlabs/Reminera/blob/main/1784605706900-removebg-preview.png)" />
-</p>
 
+<p align="center">  
+  <img width="550" alt="Reminera" src="https://raw.githubusercontent.com/rekluzlabs/Reminera/main/1784605706900-removebg-preview.png" />
+</p>
 
 
 Preserve your family's history, stories, and voices — completely offline and under your control.
