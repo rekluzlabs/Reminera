@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="cache_root" path="." />
+    <cache-path name="my_cache_images" path="images/" />
+    <cache-path name="my_cache_videos" path="videos/" />
+    <files-path name="my_images" path="images/" />
+    <files-path name="my_videos" path="videos/" />
+    <files-path name="my_audio" path="audio/" />
+</paths>
