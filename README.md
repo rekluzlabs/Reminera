@@ -2,6 +2,9 @@
 <p align="center">  
 <img width="550" height="250" alt="Reminera" src="[https://github.com/rekluzlabs/Reminera/blob/main/1784605706900.png](https://github.com/rekluzlabs/Reminera/blob/main/1784605706900-removebg-preview.png)" />
 </p>
+
+
+
 Preserve your family's history, stories, and voices — completely offline and under your control.
 
 Reminera is an offline-first Android application built to document, organize, and safeguard the memories, personal histories, and voices of family members — especially older relatives — before their stories are lost to time.
