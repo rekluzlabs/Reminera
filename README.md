@@ -63,16 +63,31 @@ Reminera is an offline-first Android application built to document, organize, an
 
 ## Privacy Philosophy
 
-Reminera adheres to a strict "Your Data, Your Ownership" philosophy. All assets remain entirely on your local file system unless you explicitly choose to link cloud storage for physical book exports.
+Reminera adheres to a strict "Your Data, Your Ownership" philosophy. All assets remain entirely on your local file system unless you explicitly choose to connect to AI models for processing.
 
 ---
 
 ##  License
 
-Copyright © 2026 Rekluz Labs. All rights reserved. *This code and its assets are the exclusive property of Rekluz Labs. Personal use only. No commercial use or redistribution permitted.Copyright © 2026 Rico (Rekluz Software). All Rights Reserved.
+Copyright (c) 2026 Rekluz Labs. All rights reserved.
 
-This project and its associated assets (source code, graphics, and design) are the exclusive property of the creator.
+This software and all associated files (the "Software") are the exclusive 
+intellectual property of Rekluz Labs.
 
-    Personal Use: You may view and fork this repository for personal, educational, and non-commercial study only.
-    Prohibited Use: No part of this project may be redistributed, modified for public use, or used in commercial products without express written permission.
-    No Warranty: This software is provided "as-is," without warranty of any kind.
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION:
+
+1. PROPRIETARY RIGHTS: This Software is not open-source. All rights, 
+   title, and interest in and to the Software remain with Rekluz Labs.
+
+2. PERSONAL USE ONLY: You are granted permission to download and view 
+   the source code for educational and personal purposes only.
+
+3. RESTRICTIONS: 
+   - You may not redistribute, sell, or sub-license the Software.
+   - You may not create derivative works for commercial gain.
+   - You may not use the branding, logo, or assets for any purpose 
+     without express written consent.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. 
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES, 
+OR OTHER LIABILITY.
