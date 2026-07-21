@@ -11,20 +11,20 @@ Reminera is an offline-first Android application built to document, organize, an
 
 ---
 
-## 🌟 Key Features
+##  Key Features
 
 * Offline-First & Private: All personal data (narratives, family profiles, historical photographs, audio clips, and video recordings) stays strictly local on your device. No required accounts, no tracking, and no external server dependency.
 * Rich Storytelling Canvas: Attach multiple mixed-media items to any single memory:
-  - 📷 Historical Photos: Import digitized family photographs via the native Android Photo Picker.
-  - 🎙️ Audio Recordings: Capture voice stories, oral histories, and interviews directly in-app.
-  - 📹 Video Clips: Record video memories using CameraX.
-  - 📝 Narratives & Captions: Write detailed story accounts and add individual captions and ordering to media assets.
+  -  Historical Photos: Import digitized family photographs via the native Android Photo Picker.
+  - Audio Recordings: Capture voice stories, oral histories, and interviews directly in-app.
+  -  Video Clips: Record video memories using CameraX.
+  - Narratives & Captions: Write detailed story accounts and add individual captions and ordering to media assets.
 * Family Profiles: Organize memories by relative, keeping timelines, biographies, key dates, and relationships clear.
 * Print-Ready Book Export (Future Phase): Layout stories, photos, and embedded QR codes into print-ready PDF memory books. Scan QR codes on printed pages to instantly play linked audio/video clips hosted in your personal cloud storage (BYOK-style).
 
 ---
 
-## 🏗️ Architecture & Technical Stack
+##  Architecture & Technical Stack
 
 * Language: Kotlin
 * UI Framework: Jetpack Compose
@@ -35,7 +35,7 @@ Reminera is an offline-first Android application built to document, organize, an
 
 ---
 
-## 📂 Data Model Overview
+##  Data Model Overview
 
 * FamilyMemberEntity: Stores relative profiles, relationships, birth dates, avatars, and biographies.
 * MemoryEntity: Represents a specific memory or story event linked to a family member.
@@ -43,7 +43,7 @@ Reminera is an offline-first Android application built to document, organize, an
 
 ---
 
-## 🗺️ Development Roadmap
+## Development Roadmap
 
 ### Phase 1: Local Memory Preservation (Current Focus)
 - [x] Room Database architecture setup & entity schema design
@@ -61,20 +61,12 @@ Reminera is an offline-first Android application built to document, organize, an
 
 ---
 
-## 🔒 Privacy Philosophy
+## Privacy Philosophy
 
 Reminera adheres to a strict "Your Data, Your Ownership" philosophy. All assets remain entirely on your local file system unless you explicitly choose to link cloud storage for physical book exports.
 
 ---
 
-## 🛠️ Build & Setup
-
-1. Clone the repository: git clone https://github.com/rekluzlabs/Reminera.git
-2. Open the project in your IDE.
-3. Sync Gradle and build the project.
-
----
-
-## 📄 License
+##  License
 
 Created and maintained by RekluzLabs.
