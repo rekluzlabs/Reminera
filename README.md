@@ -1,6 +1,6 @@
 # Reminera
 <p align="center">  
-<img width="550" height="250" alt="gameplay1" src="https://github.com/rekluzlabs/Reminera/blob/main/1784605706900.png" />
+<img width="550" height="250" alt="gameplay1" src="[https://github.com/rekluzlabs/Reminera/blob/main/1784605706900.png](https://github.com/rekluzlabs/Reminera/blob/main/1784605706900-removebg-preview.png)" />
 </p>
 Preserve your family's history, stories, and voices — completely offline and under your control.
 
