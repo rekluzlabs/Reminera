@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -128,68 +129,58 @@ class RemineraViewModel(private val repository: MemoryEntryRepository) : ViewMod
         localFilePath: String? = null
     ) {
         viewModelScope.launch {
-            repository.getEntryById(id).collect { entry ->
-                if (entry != null) {
-                    repository.update(
-                        entry.copy(
-                            title = title,
-                            notes = notes,
-                            personTag = personTag,
-                            type = type ?: entry.type,
-                            localFilePath = localFilePath ?: entry.localFilePath
-                        )
+            val entry = repository.getEntryById(id).firstOrNull()
+            if (entry != null) {
+                repository.update(
+                    entry.copy(
+                        title = title,
+                        notes = notes,
+                        personTag = personTag,
+                        type = type ?: entry.type,
+                        localFilePath = localFilePath ?: entry.localFilePath
                     )
-                }
-                return@collect
+                )
             }
         }
     }
 
     fun updateNotes(id: String, notes: String) {
         viewModelScope.launch {
-            repository.getEntryById(id).collect { entry ->
-                if (entry != null) {
-                    repository.update(entry.copy(notes = notes))
-                }
-                return@collect
+            val entry = repository.getEntryById(id).firstOrNull()
+            if (entry != null) {
+                repository.update(entry.copy(notes = notes))
             }
         }
     }
 
     fun updatePersonTag(id: String, personTag: String) {
         viewModelScope.launch {
-            repository.getEntryById(id).collect { entry ->
-                if (entry != null) {
-                    repository.update(entry.copy(personTag = personTag))
-                }
-                return@collect
+            val entry = repository.getEntryById(id).firstOrNull()
+            if (entry != null) {
+                repository.update(entry.copy(personTag = personTag))
             }
         }
     }
 
     fun markUploaded(id: String, hostedUrl: String) {
         viewModelScope.launch {
-            repository.getEntryById(id).collect { entry ->
-                if (entry != null) {
-                    repository.update(
-                        entry.copy(
-                            uploadStatus = UploadStatus.UPLOADED.name,
-                            hostedUrl = hostedUrl
-                        )
+            val entry = repository.getEntryById(id).firstOrNull()
+            if (entry != null) {
+                repository.update(
+                    entry.copy(
+                        uploadStatus = UploadStatus.UPLOADED.name,
+                        hostedUrl = hostedUrl
                     )
-                }
-                return@collect
+                )
             }
         }
     }
 
     fun deleteEntry(id: String) {
         viewModelScope.launch {
-            repository.getEntryById(id).collect { entry ->
-                if (entry != null) {
-                    repository.delete(entry)
-                }
-                return@collect
+            val entry = repository.getEntryById(id).firstOrNull()
+            if (entry != null) {
+                repository.delete(entry)
             }
         }
     }

@@ -9,25 +9,42 @@ import java.io.FileOutputStream
 class AudioRecorder(private val context: Context) {
 
     private var recorder: MediaRecorder? = null
+    private var isRecording = false
 
     fun start(outputFile: File) {
-        createRecorder().apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            setOutputFile(FileOutputStream(outputFile).fd)
+        if (recorder != null) stop()
 
-            prepare()
-            start()
+        val r = createRecorder()
+        try {
+            r.setAudioSource(MediaRecorder.AudioSource.MIC)
+            r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            r.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            r.setOutputFile(FileOutputStream(outputFile).fd)
 
-            recorder = this
+            r.prepare()
+            r.start()
+
+            recorder = r
+            isRecording = true
+        } catch (e: Exception) {
+            r.release()
+            recorder = null
+            isRecording = false
+            throw e
         }
     }
 
     fun stop() {
-        recorder?.stop()
-        recorder?.reset()
-        recorder = null
+        if (!isRecording) return
+        isRecording = false
+        try {
+            recorder?.stop()
+        } catch (_: RuntimeException) {
+            // Stopped abruptly or never fully started — safe to ignore
+        } finally {
+            recorder?.release()
+            recorder = null
+        }
     }
 
     private fun createRecorder(): MediaRecorder {

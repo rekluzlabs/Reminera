@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
-@Database(entities = [MemoryEntryEntity::class, FamilyGroupEntity::class], version = 3, exportSchema = false)
+@Database(entities = [MemoryEntryEntity::class, FamilyGroupEntity::class], version = 3, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class RemineraDatabase : RoomDatabase() {
 
@@ -25,8 +25,9 @@ abstract class RemineraDatabase : RoomDatabase() {
                     "reminera.db"
                 )
                     .fallbackToDestructiveMigration(dropAllTables = true)
-                    // Intentionally used for pre-release / alpha development.
-                    // Must be replaced with a real Migration before public release.
+                    // TODO: Replace with explicit Migration objects before
+                    // public release (Room currently drops all user data on
+                    // schema change). See app/schemas/ for exported schemas.
                     .build()
                 INSTANCE = instance
                 instance

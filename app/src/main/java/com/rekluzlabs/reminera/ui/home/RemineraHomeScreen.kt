@@ -92,9 +92,11 @@ import com.rekluzlabs.reminera.ui.settings.ThemeMode
 import com.rekluzlabs.reminera.util.AudioRecorder
 import com.rekluzlabs.reminera.util.MediaSaver
 import com.rekluzlabs.reminera.util.copyUriToInternal
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -287,7 +289,7 @@ fun RemineraHomeScreen(
                     val context = LocalContext.current
                     AddMemoryBottomSheetContent(
                         onSave = { title, type, notes, personTag, mediaUri, secondaryMediaType, secondaryMediaUri ->
-                            scope.launch {
+                            scope.launch(Dispatchers.IO) {
                                 val localPath = mediaUri?.let { uri ->
                                     val ext = when (type) {
                                         MemoryType.PHOTO -> "jpg"
@@ -302,8 +304,10 @@ fun RemineraHomeScreen(
                                     copyUriToInternal(context, secondaryMediaUri, ext)
                                 } else null
 
-                                sheetState.hide()
-                                showBottomSheet = false
+                                withContext(Dispatchers.Main) {
+                                    sheetState.hide()
+                                    showBottomSheet = false
+                                }
 
                                 if (type == MemoryType.PHOTO) {
                                     viewModel.addImportedPhoto(
