@@ -3,7 +3,7 @@ Preserve your family's history, stories, and voices — completely offline and u
 
 Reminera is an offline-first Android application being built to document, organize, and safeguard the memories, personal histories, and voices of family members — especially older relatives — before their stories are lost to time.
 
-Status: Very Early Alpha. Reminera is in very early development. Most features described below are planned and not yet implemented. This README describes the intended direction of the project, not its current state. See the Development Roadmap for what actually exists today.
+Status: Very Early Alpha. Reminera is in very early development. Most features described below are planned and not yet implemented. This README describes the intended direction of the project, not its current state. Check back often for updates. 
 
 Vision & Planned Features
 Offline-First & Private: All personal data (narratives, family profiles, historical photographs, audio clips, and video recordings) is intended to stay strictly local on your device. 
