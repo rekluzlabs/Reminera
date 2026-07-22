@@ -1,0 +1,6 @@
+- [x] Implement inline playback and full-screen toggle in `MemoryDetailScreen.kt`
+    - [x] Update `ViewMediaPreview` to pass full-screen action to `ViewVideoPreview`
+    - [x] Add `isPlaying` state and play/pause logic to `ViewVideoPreview`
+    - [x] Add full-screen toggle icon to `ViewVideoPreview` (bottom-left)
+    - [x] Ensure `shouldPause` synchronization
+- [x] Verify build and functionality
