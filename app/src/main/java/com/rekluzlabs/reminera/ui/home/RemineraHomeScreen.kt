@@ -15,6 +15,7 @@ import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -44,6 +47,7 @@ import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -53,13 +57,16 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -82,8 +89,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.rekluzlabs.reminera.data.FamilyGroupEntity
+import com.rekluzlabs.reminera.data.GroupType
 import com.rekluzlabs.reminera.data.MemoryEntryEntity
 import com.rekluzlabs.reminera.data.MemoryType
+import com.rekluzlabs.reminera.data.RemineraDatabase
 import com.rekluzlabs.reminera.ui.detail.MemoryDetailScreen
 import com.rekluzlabs.reminera.ui.detail.MemoryEditScreen
 import com.rekluzlabs.reminera.ui.settings.SettingsScreen
@@ -127,6 +137,12 @@ fun RemineraHomeScreen(
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+
+    val context = LocalContext.current
+    val db = remember { RemineraDatabase.getInstance(context) }
+    val groupsState = db.familyGroupDao().getAllOrderedBySortOrder()
+        .collectAsState(initial = emptyList())
+    val allGroups = groupsState.value
 
     when {
         showSettings -> {
@@ -174,7 +190,8 @@ fun RemineraHomeScreen(
                 onDelete = {
                     viewModel.deleteEntry(entry.id)
                     selectedEntry = null
-                }
+                },
+                onMoveToGroup = { id, newGroupId -> viewModel.moveToGroup(id, newGroupId) }
             )
         }
         else -> {
@@ -185,8 +202,7 @@ fun RemineraHomeScreen(
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background)
             ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Spacer(modifier = Modifier.height(48.dp))
+                Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
 
                     Row(
                         modifier = Modifier
@@ -260,6 +276,10 @@ fun RemineraHomeScreen(
                         is MemoryLibraryUiState.Success -> {
                             MemoryLibraryContent(
                                 entries = state.entries,
+                                groupId = groupId,
+                                allGroups = allGroups,
+                                viewModel = viewModel,
+                                db = db,
                                 onDeleteEntry = { viewModel.deleteEntry(it) },
                                 onEntryClick = { entry -> selectedEntry = entry }
                             )
@@ -275,6 +295,7 @@ fun RemineraHomeScreen(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(20.dp)
+                        .navigationBarsPadding()
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add memory")
                 }
@@ -341,6 +362,10 @@ fun RemineraHomeScreen(
 @Composable
 private fun MemoryLibraryContent(
     entries: List<MemoryEntryEntity>,
+    groupId: Long,
+    allGroups: List<FamilyGroupEntity>,
+    viewModel: RemineraViewModel,
+    db: RemineraDatabase,
     onDeleteEntry: (String) -> Unit,
     onEntryClick: (MemoryEntryEntity) -> Unit
 ) {
@@ -357,7 +382,7 @@ private fun MemoryLibraryContent(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().navigationBarsPadding(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp)
     ) {
         sortedGroups.forEach { (key, groupEntries) ->
@@ -384,6 +409,10 @@ private fun MemoryLibraryContent(
             items(groupEntries, key = { it.id }) { entry ->
                 MemoryEntryCard(
                     entry = entry,
+                    groupId = groupId,
+                    allGroups = allGroups,
+                    viewModel = viewModel,
+                    db = db,
                     onDelete = { onDeleteEntry(entry.id) },
                     onClick = { onEntryClick(entry) }
                 )
@@ -396,10 +425,15 @@ private fun MemoryLibraryContent(
 @Composable
 private fun MemoryEntryCard(
     entry: MemoryEntryEntity,
+    groupId: Long,
+    allGroups: List<FamilyGroupEntity>,
+    viewModel: RemineraViewModel,
+    db: RemineraDatabase,
     onDelete: () -> Unit,
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
+    var showMoveDialog by remember { mutableStateOf(false) }
     val file = remember(entry.localFilePath) { File(entry.localFilePath) }
 
     val thumbBitmap = remember(entry.localFilePath, entry.type) {
@@ -427,7 +461,10 @@ private fun MemoryEntryCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { showMoveDialog = true }
+            )
     ) {
         Column {
             Row(
@@ -629,6 +666,17 @@ private fun MemoryEntryCard(
                 }
             }
         }
+    }
+
+    if (showMoveDialog) {
+        MoveMemoryDialog(
+            entry = entry,
+            allGroups = allGroups,
+            currentGroupId = groupId,
+            viewModel = viewModel,
+            db = db,
+            onDismiss = { showMoveDialog = false }
+        )
     }
 }
 
@@ -1183,4 +1231,118 @@ private fun AddMemoryBottomSheetContent(
 
         Spacer(modifier = Modifier.height(24.dp))
     }
+}
+
+@Composable
+private fun MoveMemoryDialog(
+    entry: MemoryEntryEntity,
+    allGroups: List<FamilyGroupEntity>,
+    currentGroupId: Long,
+    viewModel: RemineraViewModel,
+    db: RemineraDatabase,
+    onDismiss: () -> Unit
+) {
+    var showCreateGroup by remember { mutableStateOf(false) }
+    var newGroupName by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    val otherGroups = allGroups.filter { it.id != currentGroupId }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Move Memory") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    text = "Move \"${entry.title}\" to:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (showCreateGroup) {
+                    OutlinedTextField(
+                        value = newGroupName,
+                        onValueChange = { newGroupName = it },
+                        label = { Text("New group name") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            cursorColor = MaterialTheme.colorScheme.primary,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    FilledTonalButton(
+                        onClick = {
+                            if (newGroupName.isNotBlank()) {
+                                scope.launch {
+                                    val newGroup = FamilyGroupEntity(
+                                        name = newGroupName,
+                                        groupType = GroupType.CUSTOM.name,
+                                        sortOrder = (allGroups.maxOfOrNull { it.sortOrder } ?: 0) + 1,
+                                        createdAt = System.currentTimeMillis()
+                                    )
+                                    val newId = db.familyGroupDao().insert(newGroup)
+                                    viewModel.moveToGroup(entry.id, newId)
+                                    onDismiss()
+                                }
+                            }
+                        },
+                        enabled = newGroupName.isNotBlank(),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Create & Move")
+                    }
+                } else if (otherGroups.isEmpty()) {
+                    Text(
+                        text = "No other groups available.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    FilledTonalButton(
+                        onClick = { showCreateGroup = true },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Create New Group")
+                    }
+                } else {
+                    otherGroups.forEach { group ->
+                        Surface(
+                            onClick = {
+                                viewModel.moveToGroup(entry.id, group.id)
+                                onDismiss()
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = group.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -43,6 +45,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rekluzlabs.reminera.BuildConfig
 import com.rekluzlabs.reminera.R
+import com.rekluzlabs.reminera.ui.theme.CinnamonPrimary
+import com.rekluzlabs.reminera.ui.theme.MutedClay
+import com.rekluzlabs.reminera.ui.theme.OlivePrimary
+import com.rekluzlabs.reminera.ui.theme.RosePrimary
 
 private val CyanPrimary = Color(0xFF00BCD4)
 
@@ -55,13 +61,11 @@ fun SettingsScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+            .navigationBarsPadding(),
         contentPadding = PaddingValues(bottom = 16.dp)
     ) {
-        item {
-            Spacer(modifier = Modifier.height(48.dp))
-        }
-
         item {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -206,30 +210,15 @@ private fun ThemeOption(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val (label, description, previewColor) = when (mode) {
-        ThemeMode.LIGHT -> Triple("Light", "Default light theme", Color(0xFFF5F5F5))
-        ThemeMode.DARK -> Triple("Dark", "Default dark theme", Color(0xFF1C1B1F))
-        ThemeMode.AMOLED_BLACK -> Triple("Amoled Black", "Pure black for OLED screens", Color.Black)
-        ThemeMode.WARM_TERRACOTTA -> Triple(
-            "Warm Terracotta & Sand",
-            "Calm & Organic — Muted Clay and Soft Sage accents",
-            Color(0xFFD97706)
-        )
-        ThemeMode.CINNAMON_CREAM -> Triple(
-            "Cinnamon Cream",
-            "Warm beige & cinnamon spice tones",
-            Color(0xFFD2691E)
-        )
-        ThemeMode.DUSTY_ROSE_COPPER -> Triple(
-            "Dusty Rose & Copper",
-            "Soft rose blush with warm copper accents",
-            Color(0xFFB8736D)
-        )
-        ThemeMode.OLIVE_BRASS -> Triple(
-            "Olive & Brass",
-            "Earthy olive green with metallic brass",
-            Color(0xFF808000)
-        )
+    val label = mode.displayName
+    val (description, previewColor) = when (mode) {
+        ThemeMode.LIGHT -> "A fresh, open canvas" to Color(0xFFF5F5F5)
+        ThemeMode.DARK -> "Subdued tones for focused evenings" to Color(0xFF1C1B1F)
+        ThemeMode.AMOLED_BLACK -> "True black for OLED screens" to Color.Black
+        ThemeMode.WARM_TERRACOTTA -> "Warm, hand-thrown clay tones" to MutedClay
+        ThemeMode.CINNAMON_CREAM -> "Soft, time-worn paper tones" to CinnamonPrimary
+        ThemeMode.DUSTY_ROSE_COPPER -> "Muted rose warmed by copper accents" to RosePrimary
+        ThemeMode.OLIVE_BRASS -> "Earthy olive grounded by aged brass" to OlivePrimary
     }
 
     val containerColor = if (isSelected) {

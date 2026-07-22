@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -212,6 +213,7 @@ fun FamilyGroupsScreen(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(20.dp)
+                    .navigationBarsPadding()
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add group")
             }

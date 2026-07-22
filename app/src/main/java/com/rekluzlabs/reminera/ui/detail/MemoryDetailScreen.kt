@@ -3,7 +3,6 @@ package com.rekluzlabs.reminera.ui.detail
 import android.graphics.BitmapFactory
 import android.media.MediaPlayer
 import android.net.Uri
-import android.widget.MediaController
 import android.widget.VideoView
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -19,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.SaveAlt
+import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -43,9 +45,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,7 +65,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.rekluzlabs.reminera.data.FamilyGroupEntity
 import com.rekluzlabs.reminera.data.MemoryEntryEntity
+import com.rekluzlabs.reminera.data.RemineraDatabase
 import com.rekluzlabs.reminera.util.MediaSaver
 import java.io.File
 
@@ -70,18 +76,24 @@ fun MemoryDetailScreen(
     entry: MemoryEntryEntity,
     onBack: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onMoveToGroup: (id: String, newGroupId: Long) -> Unit
 ) {
     val context = LocalContext.current
     var showFullScreenMedia by remember { mutableStateOf(false) }
+    var showMoveDialog by remember { mutableStateOf(false) }
+
+    val groups by remember {
+        RemineraDatabase.getInstance(context).familyGroupDao().getAllOrderedBySortOrder()
+    }.collectAsState(initial = emptyList())
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
+                .statusBarsPadding()
         ) {
-            Spacer(modifier = Modifier.height(48.dp))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -215,6 +227,24 @@ fun MemoryDetailScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Button(
+                        onClick = { showMoveDialog = true },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Icon(Icons.Default.DriveFileMove, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.size(8.dp))
+                        Text("Move to Group", fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
                         onClick = onDelete,
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -241,6 +271,18 @@ fun MemoryDetailScreen(
                 onBack = { showFullScreenMedia = false }
             )
         }
+    }
+
+    if (showMoveDialog) {
+        MoveGroupDialog(
+            currentGroupId = entry.groupId,
+            groups = groups,
+            onSelect = { newGroupId ->
+                onMoveToGroup(entry.id, newGroupId)
+                showMoveDialog = false
+            },
+            onDismiss = { showMoveDialog = false }
+        )
     }
 }
 
@@ -380,7 +422,6 @@ private fun ViewVideoPreview(uri: Uri, shouldPause: Boolean, onFullScreenClick: 
             modifier = Modifier.fillMaxSize()
         )
 
-        // Full Screen Button (Bottom Left)
         IconButton(
             onClick = onFullScreenClick,
             modifier = Modifier
@@ -395,7 +436,6 @@ private fun ViewVideoPreview(uri: Uri, shouldPause: Boolean, onFullScreenClick: 
             )
         }
 
-        // Play/Pause Button (Bottom Right)
         IconButton(
             onClick = {
                 videoView?.let { vv ->
@@ -500,4 +540,50 @@ private fun ViewAudioPreview(uri: Uri, title: String, shouldPause: Boolean) {
             )
         }
     }
+}
+
+@Composable
+private fun MoveGroupDialog(
+    currentGroupId: Long,
+    groups: List<FamilyGroupEntity>,
+    onSelect: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Move to Group") },
+        text = {
+            Column {
+                if (groups.isEmpty()) {
+                    Text(
+                        text = "No other groups available.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    groups.forEach { group ->
+                        val isCurrent = group.id == currentGroupId
+                        TextButton(
+                            onClick = { if (!isCurrent) onSelect(group.id) },
+                            enabled = !isCurrent,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = group.name,
+                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isCurrent)
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                else
+                                    MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

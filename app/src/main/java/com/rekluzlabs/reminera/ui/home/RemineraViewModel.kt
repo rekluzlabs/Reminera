@@ -176,6 +176,15 @@ class RemineraViewModel(private val repository: MemoryEntryRepository) : ViewMod
         }
     }
 
+    fun moveToGroup(id: String, newGroupId: Long) {
+        viewModelScope.launch {
+            val entry = repository.getEntryById(id).firstOrNull()
+            if (entry != null) {
+                repository.update(entry.copy(groupId = newGroupId))
+            }
+        }
+    }
+
     fun deleteEntry(id: String) {
         viewModelScope.launch {
             val entry = repository.getEntryById(id).firstOrNull()

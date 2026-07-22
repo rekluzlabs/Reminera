@@ -8,6 +8,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,6 +53,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -93,7 +98,7 @@ fun FullScreenMediaViewer(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(8.dp)
-                .padding(top = 40.dp)
+                .statusBarsPadding()
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -134,12 +139,48 @@ private fun FullScreenPhoto(uri: Uri, entry: MemoryEntryEntity) {
     val hasVideoSecondary = secondaryType == "VIDEO" && !secondaryPath.isNullOrBlank()
     val hasAudioSecondary = secondaryType == "AUDIO" && !secondaryPath.isNullOrBlank()
 
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var offsetY by remember { mutableFloatStateOf(0f) }
+
     Box(modifier = Modifier.fillMaxSize()) {
         if (bitmap != null) {
             Image(
                 bitmap = bitmap.asImageBitmap(),
                 contentDescription = "Full screen photo",
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(
+                        scaleX = scale,
+                        scaleY = scale,
+                        translationX = offsetX,
+                        translationY = offsetY
+                    )
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                if (scale > 1.5f) {
+                                    scale = 1f
+                                    offsetX = 0f
+                                    offsetY = 0f
+                                } else {
+                                    scale = 2.5f
+                                }
+                            }
+                        )
+                    }
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            scale = (scale * zoom).coerceIn(1f, 5f)
+                            if (scale > 1f) {
+                                offsetX += pan.x
+                                offsetY += pan.y
+                            } else {
+                                offsetX = 0f
+                                offsetY = 0f
+                            }
+                        }
+                    },
                 contentScale = ContentScale.Fit
             )
         }
@@ -149,7 +190,7 @@ private fun FullScreenPhoto(uri: Uri, entry: MemoryEntryEntity) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clickable { showingSecondaryVideo = true },
+                        .clickable(enabled = scale <= 1f) { showingSecondaryVideo = true },
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
@@ -170,7 +211,7 @@ private fun FullScreenPhoto(uri: Uri, entry: MemoryEntryEntity) {
             }
         }
 
-        if (hasAudioSecondary) {
+        if (hasAudioSecondary && scale <= 1f) {
             FullScreenPhotoAudioChip(secondaryPath!!)
         }
     }

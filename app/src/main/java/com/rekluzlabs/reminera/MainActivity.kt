@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,7 +32,6 @@ import com.rekluzlabs.reminera.ui.settings.ThemeManager
 import com.rekluzlabs.reminera.ui.settings.ThemeMode
 import com.rekluzlabs.reminera.ui.splash.RemineraSplashScreen
 import com.rekluzlabs.reminera.ui.theme.RemineraTheme
-import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
 
@@ -45,6 +45,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
         themeManager = ThemeManager(applicationContext)
 
@@ -53,15 +54,10 @@ class MainActivity : ComponentActivity() {
             var themeMode by rememberSaveable { mutableStateOf(themeManager.getThemeMode()) }
             var showSettings by remember { mutableStateOf(false) }
 
-            LaunchedEffect(Unit) {
-                delay(2000)
-                showSplash = false
-            }
-
             RemineraTheme(themeMode = themeMode) {
                 when {
                     showSplash -> {
-                        RemineraSplashScreen()
+                        RemineraSplashScreen(onBegin = { showSplash = false })
                     }
                     showSettings -> {
                         BackHandler { showSettings = false }
