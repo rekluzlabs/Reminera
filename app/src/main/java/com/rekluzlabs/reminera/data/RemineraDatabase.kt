@@ -6,12 +6,27 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
-@Database(entities = [MemoryEntryEntity::class, FamilyGroupEntity::class], version = 3, exportSchema = true)
+@Database(
+    entities = [
+        MemoryEntryEntity::class,
+        FamilyGroupEntity::class,
+        FamilyMemberEntity::class,
+        BiographyEntity::class,
+        BiographySectionEntity::class,
+        StoryEntryEntity::class
+    ],
+    version = 6,
+    exportSchema = true
+)
 @TypeConverters(Converters::class)
 abstract class RemineraDatabase : RoomDatabase() {
 
     abstract fun memoryEntryDao(): MemoryEntryDao
     abstract fun familyGroupDao(): FamilyGroupDao
+    abstract fun familyMemberDao(): FamilyMemberDao
+    abstract fun biographyDao(): BiographyDao
+    abstract fun biographySectionDao(): BiographySectionDao
+    abstract fun storyEntryDao(): StoryEntryDao
 
     companion object {
         @Volatile
@@ -25,9 +40,6 @@ abstract class RemineraDatabase : RoomDatabase() {
                     "reminera.db"
                 )
                     .fallbackToDestructiveMigration(dropAllTables = true)
-                    // TODO: Replace with explicit Migration objects before
-                    // public release (Room currently drops all user data on
-                    // schema change). See app/schemas/ for exported schemas.
                     .build()
                 INSTANCE = instance
                 instance

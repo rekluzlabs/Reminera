@@ -3,6 +3,7 @@ package com.rekluzlabs.reminera.ui.familygroups
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,10 +57,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,11 +74,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rekluzlabs.reminera.data.FamilyGroupEntity
 import com.rekluzlabs.reminera.data.GroupType
+import com.rekluzlabs.reminera.ui.tutorial.TutorialCoordinator
+import com.rekluzlabs.reminera.ui.tutorial.TutorialRepository
+import com.rekluzlabs.reminera.ui.tutorial.TutorialOverlay
+import com.rekluzlabs.reminera.ui.tutorial.tutorialTarget
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FamilyGroupsScreen(
     viewModel: FamilyGroupsViewModel,
+    tutorialCoordinator: TutorialCoordinator,
+    tutorialRepository: TutorialRepository,
     onGroupClick: (Long) -> Unit,
     onSettingsClick: () -> Unit = {}
 ) {
@@ -83,6 +94,7 @@ fun FamilyGroupsScreen(
     val isSelectionMode by viewModel.isSelectionMode.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
     val entryCounts by viewModel.entryCounts.collectAsState()
+    val memberCounts by viewModel.memberCounts.collectAsState()
 
     var showAddSheet by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -90,6 +102,21 @@ fun FamilyGroupsScreen(
     var showRenameDialog by remember { mutableStateOf(false) }
     var renamingGroupId by remember { mutableStateOf<Long?>(null) }
     var renamingGroupName by remember { mutableStateOf("") }
+    var pendingSheetAfterTutorial by remember { mutableStateOf(false) }
+
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        delay(300)
+        if (!tutorialRepository.isSeen("family_groups")) {
+            tutorialCoordinator.start(
+                steps = familyGroupsTutorialSteps,
+                onComplete = {
+                    scope.launch { tutorialRepository.markSeen("family_groups") }
+                }
+            )
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -169,6 +196,7 @@ fun FamilyGroupsScreen(
                     FamilyGroupTile(
                         group = group,
                         entryCount = entryCounts[group.id] ?: 0,
+                        memberCount = memberCounts[group.id] ?: 0,
                         isSelected = group.id in selectedIds,
                             isSelectionMode = isSelectionMode,
                             isFirst = group == groups.first(),
@@ -206,7 +234,14 @@ fun FamilyGroupsScreen(
 
         if (!isSelectionMode) {
             FloatingActionButton(
-                onClick = { showAddSheet = true },
+                onClick = {
+                    if (tutorialCoordinator.isActive) {
+                        tutorialCoordinator.advance()
+                        pendingSheetAfterTutorial = true
+                    } else {
+                        showAddSheet = true
+                    }
+                },
                 shape = RoundedCornerShape(16.dp),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.background,
@@ -214,6 +249,7 @@ fun FamilyGroupsScreen(
                     .align(Alignment.BottomEnd)
                     .padding(20.dp)
                     .navigationBarsPadding()
+                    .tutorialTarget("add_family_group_button", tutorialCoordinator)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add group")
             }
@@ -222,10 +258,18 @@ fun FamilyGroupsScreen(
 
     if (showAddSheet) {
         AddGroupSheet(
-            onDismiss = { showAddSheet = false },
+            tutorialCoordinator = tutorialCoordinator,
+            onDismiss = {
+                showAddSheet = false
+                if (tutorialCoordinator.isActive) {
+                    tutorialCoordinator.skip()
+                    scope.launch { tutorialRepository.markSeen("family_groups") }
+                }
+            },
             onCreateGroup = { type, customName ->
                 viewModel.addGroup(type, customName)
                 showAddSheet = false
+                tutorialCoordinator.advance()
             }
         )
     }
@@ -262,6 +306,26 @@ fun FamilyGroupsScreen(
             }
         )
     }
+
+    TutorialOverlay(
+        coordinator = tutorialCoordinator,
+        screenKey = "family_groups",
+        repository = tutorialRepository,
+        onDismiss = {
+            scope.launch { tutorialRepository.markSeen("family_groups") }
+            if (pendingSheetAfterTutorial) {
+                pendingSheetAfterTutorial = false
+                showAddSheet = true
+            }
+        }
+    )
+
+    LaunchedEffect(tutorialCoordinator.isActive) {
+        if (!tutorialCoordinator.isActive && pendingSheetAfterTutorial) {
+            pendingSheetAfterTutorial = false
+            showAddSheet = true
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -269,6 +333,7 @@ fun FamilyGroupsScreen(
 private fun FamilyGroupTile(
     group: FamilyGroupEntity,
     entryCount: Int,
+    memberCount: Int,
     isSelected: Boolean,
     isSelectionMode: Boolean,
     isFirst: Boolean,
@@ -286,6 +351,7 @@ private fun FamilyGroupTile(
     val icon = iconForGroupType(group.groupType)
 
     val hasMedia = entryCount > 0
+    val hasMembers = memberCount > 0
 
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -329,15 +395,61 @@ private fun FamilyGroupTile(
                 modifier = Modifier.align(Alignment.Center),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                    tint = if (isSelected)
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    else
-                        MaterialTheme.colorScheme.primary
-                )
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .then(
+                            if (hasMembers && !isSelected)
+                                Modifier.border(
+                                    2.dp,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                    RoundedCornerShape(12.dp)
+                                )
+                            else Modifier
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp),
+                        tint = if (isSelected)
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        else
+                            MaterialTheme.colorScheme.primary
+                    )
+                }
+                if (!isSelectionMode && hasMembers) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .background(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 6.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = "${memberCount} member${if (memberCount != 1) "s" else ""}",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                } else if (!isSelectionMode && !hasMembers) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(horizontal = 6.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = "Empty",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = group.name,
@@ -435,6 +547,7 @@ private fun iconForGroupType(groupType: String): ImageVector {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddGroupSheet(
+    tutorialCoordinator: TutorialCoordinator? = null,
     onDismiss: () -> Unit,
     onCreateGroup: (GroupType, String?) -> Unit
 ) {
@@ -475,7 +588,12 @@ private fun AddGroupSheet(
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     ),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            tutorialCoordinator?.let { Modifier.tutorialTarget("group_name_field", it) }
+                                ?: Modifier
+                        )
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 TextButton(
@@ -485,7 +603,12 @@ private fun AddGroupSheet(
                         }
                     },
                     enabled = customName.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            tutorialCoordinator?.let { Modifier.tutorialTarget("save_group_button", it) }
+                                ?: Modifier
+                        )
                 ) {
                     Text("Confirm", fontWeight = FontWeight.Bold)
                 }
@@ -496,6 +619,10 @@ private fun AddGroupSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 16.dp)
+                    .then(
+                        tutorialCoordinator?.let { Modifier.tutorialTarget("add_members_button", it) }
+                            ?: Modifier
+                    )
             ) {
                 Text(
                     text = "Add Family Group",
@@ -516,6 +643,12 @@ private fun AddGroupSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp)
+                            .then(
+                                if (type == GroupType.CUSTOM)
+                                    tutorialCoordinator?.let { Modifier.tutorialTarget("save_group_button", it) }
+                                        ?: Modifier
+                                else Modifier
+                            )
                     ) {
                         Icon(
                             imageVector = iconForGroupType(type.name),

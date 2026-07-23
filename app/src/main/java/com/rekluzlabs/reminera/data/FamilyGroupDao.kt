@@ -9,6 +9,7 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 data class GroupEntryCount(val groupId: Long, val cnt: Int)
+data class GroupMemberCount(val groupId: Long, val cnt: Int)
 
 @Dao
 interface FamilyGroupDao {
@@ -18,6 +19,9 @@ interface FamilyGroupDao {
 
     @Query("SELECT groupId, COUNT(*) AS cnt FROM memory_entries GROUP BY groupId")
     fun getEntryCounts(): Flow<List<GroupEntryCount>>
+
+    @Query("SELECT groupId, COUNT(*) AS cnt FROM family_members GROUP BY groupId")
+    fun getMemberCounts(): Flow<List<GroupMemberCount>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(group: FamilyGroupEntity): Long

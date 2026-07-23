@@ -14,24 +14,27 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -40,9 +43,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Settings
@@ -90,10 +96,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.rekluzlabs.reminera.data.FamilyGroupEntity
+import com.rekluzlabs.reminera.data.FamilyMemberEntity
 import com.rekluzlabs.reminera.data.GroupType
+import com.rekluzlabs.reminera.data.MemberRole
 import com.rekluzlabs.reminera.data.MemoryEntryEntity
 import com.rekluzlabs.reminera.data.MemoryType
 import com.rekluzlabs.reminera.data.RemineraDatabase
+import com.rekluzlabs.reminera.data.defaultRolesForGroupType
 import com.rekluzlabs.reminera.ui.detail.MemoryDetailScreen
 import com.rekluzlabs.reminera.ui.detail.MemoryEditScreen
 import com.rekluzlabs.reminera.ui.settings.SettingsScreen
@@ -117,6 +126,7 @@ import java.util.Locale
 @Composable
 fun RemineraHomeScreen(
     groupId: Long,
+    memberId: Long,
     viewModel: RemineraViewModel,
     themeManager: ThemeManager? = null,
     onBack: () -> Unit = {},
@@ -126,10 +136,32 @@ fun RemineraHomeScreen(
     var editingEntry by rememberSaveable { mutableStateOf<MemoryEntryEntity?>(null) }
     var showSettings by remember { mutableStateOf(false) }
     var themeMode by rememberSaveable { mutableStateOf(themeManager?.getThemeMode() ?: ThemeMode.LIGHT) }
+    var editingName by remember { mutableStateOf(false) }
+    var editingBio by remember { mutableStateOf(false) }
+    var draftName by remember { mutableStateOf("") }
+    var draftBio by remember { mutableStateOf("") }
+    var showDeleteMemberDialog by remember { mutableStateOf(false) }
+    var showFabOptions by remember { mutableStateOf(false) }
 
-    DisposableEffect(groupId) {
+    val context = LocalContext.current
+    val db = remember { RemineraDatabase.getInstance(context) }
+    val groupsState = db.familyGroupDao().getAllOrderedBySortOrder()
+        .collectAsState(initial = emptyList())
+    val allGroups = groupsState.value
+    val currentGroup = allGroups.find { it.id == groupId }
+
+    val membersState = viewModel.getMembersByGroupId(groupId).collectAsState(initial = emptyList())
+    val members = membersState.value
+    val member = remember(members, memberId) { members.find { it.id == memberId } }
+
+    DisposableEffect(groupId, member) {
         viewModel.setGroupId(groupId)
-        onDispose { }
+        viewModel.setPersonTagFilter(member?.name)
+        if (member != null) {
+            draftName = member.name
+            draftBio = member.biography
+        }
+        onDispose { viewModel.setPersonTagFilter(null) }
     }
 
     val uiState by viewModel.uiState.collectAsState()
@@ -137,12 +169,6 @@ fun RemineraHomeScreen(
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
-
-    val context = LocalContext.current
-    val db = remember { RemineraDatabase.getInstance(context) }
-    val groupsState = db.familyGroupDao().getAllOrderedBySortOrder()
-        .collectAsState(initial = emptyList())
-    val allGroups = groupsState.value
 
     when {
         showSettings -> {
@@ -202,51 +228,251 @@ fun RemineraHomeScreen(
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background)
             ) {
-                Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+                Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(end = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.Top
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
                             IconButton(onClick = onBack) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back to groups",
+                                    contentDescription = "Back",
                                     tint = MaterialTheme.colorScheme.onSurface
                                 )
                             }
-                            Column {
-                                Text(
-                                    text = "Reminera",
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
-                                )
-                                Text(
-                                    text = "Your Family Memories",
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 28.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
-                                )
+                            if (member != null) {
+                                val memberPhoto = remember(member.photoUri) {
+                                    member.photoUri?.let { uriStr ->
+                                        try {
+                                            val file = File(uriStr)
+                                            if (file.exists()) {
+                                                val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
+                                                BitmapFactory.decodeFile(file.absolutePath, opts)
+                                            } else {
+                                                val uri = Uri.parse(uriStr)
+                                                context.contentResolver.openInputStream(uri)?.use { input ->
+                                                    BitmapFactory.decodeStream(input)
+                                                }
+                                            }
+                                        } catch (_: Exception) { null }
+                                    }
+                                }
+                                if (memberPhoto != null) {
+                                    Image(
+                                        bitmap = memberPhoto.asImageBitmap(),
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .padding(start = 4.dp),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .padding(start = 4.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    if (editingName) {
+                                        OutlinedTextField(
+                                            value = draftName,
+                                            onValueChange = { draftName = it },
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                                cursorColor = MaterialTheme.colorScheme.primary,
+                                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                            ),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(48.dp),
+                                            textStyle = MaterialTheme.typography.headlineSmall.copy(
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        TextButton(
+                                            onClick = {
+                                                if (draftName.isNotBlank() && draftName != member.name) {
+                                                    viewModel.updateMemberName(memberId, draftName)
+                                                }
+                                                editingName = false
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                            modifier = Modifier.height(32.dp)
+                                        ) {
+                                            Text("Save", fontSize = 12.sp)
+                                        }
+                                    } else {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = member.name,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 26.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            IconButton(
+                                                onClick = {
+                                                    draftName = member.name
+                                                    editingName = true
+                                                },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                imageVector = Icons.Default.Add,
+                                                contentDescription = "Edit name",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    val roleLabel = if (currentGroup != null) {
+                                        defaultRolesForGroupType(currentGroup.groupType)
+                                            .find { it.key == member.role }?.displayName ?: member.role
+                                    } else member.role
+                                    Text(
+                                        text = roleLabel,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.padding(start = 2.dp)
+                                    )
+                                }
+                            } else {
+                                Column {
+                                    Text(
+                                        text = "Member",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
+                                    )
+                                    Text(
+                                        text = "Loading...",
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 28.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
+                                    )
+                                }
                             }
                         }
 
-                        IconButton(onClick = {
-                            showSettings = true
-                            onSettingsClick()
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Settings",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                        Row {
+                            if (member != null) {
+                                IconButton(onClick = { showDeleteMemberDialog = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete member",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                            IconButton(onClick = {
+                                showSettings = true
+                                onSettingsClick()
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Settings",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
+                    }
+
+                    if (member != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        if (editingBio) {
+                            OutlinedTextField(
+                                value = draftBio,
+                                onValueChange = { draftBio = it },
+                                label = { Text("Biography") },
+                                maxLines = 4,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    cursorColor = MaterialTheme.colorScheme.primary,
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                TextButton(
+                                    onClick = {
+                                        if (draftBio != member.biography) {
+                                            viewModel.updateMemberBiography(memberId, draftBio)
+                                        }
+                                        editingBio = false
+                                    }
+                                ) { Text("Save") }
+                                TextButton(
+                                    onClick = {
+                                        draftBio = member.biography
+                                        editingBio = false
+                                    }
+                                ) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            }
+                        } else if (member.biography.isNotBlank()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                                    .clickable {
+                                        draftBio = member.biography
+                                        editingBio = true
+                                    },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = member.biography,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Edit bio",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        } else {
+                            TextButton(
+                                onClick = {
+                                    draftBio = ""
+                                    editingBio = true
+                                },
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Text("+ Add biography", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
 
                     when (val state = uiState) {
@@ -265,7 +491,7 @@ fun RemineraHomeScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "No memories yet — tap + to record your first one.",
+                                    text = if (member != null) "No memories yet for ${member.name} — tap + to add one." else "No memories yet — tap + to add one.",
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 16.sp,
                                     modifier = Modifier.padding(32.dp)
@@ -288,7 +514,7 @@ fun RemineraHomeScreen(
                 }
 
                 FloatingActionButton(
-                    onClick = { showBottomSheet = true },
+                    onClick = { showFabOptions = true },
                     shape = RoundedCornerShape(16.dp),
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.background,
@@ -301,6 +527,88 @@ fun RemineraHomeScreen(
                 }
             }
 
+            if (showFabOptions) {
+                AlertDialog(
+                    onDismissRequest = { showFabOptions = false },
+                    title = { Text(member?.name ?: "Options") },
+                    text = {
+                        Column {
+                            TextButton(
+                                onClick = {
+                                    showFabOptions = false
+                                    showBottomSheet = true
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text("Add a memory", modifier = Modifier.weight(1f))
+                            }
+                            TextButton(
+                                onClick = {
+                                    showFabOptions = false
+                                    if (member != null) {
+                                        draftBio = member.biography
+                                        editingBio = true
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(if (member?.biography?.isNotBlank() == true) "Edit biography" else "Create biography", modifier = Modifier.weight(1f))
+                            }
+                            TextButton(
+                                onClick = {
+                                    showFabOptions = false
+                                    if (member != null) {
+                                        draftName = member.name
+                                        editingName = true
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text("Change name", modifier = Modifier.weight(1f))
+                            }
+                        }
+                    },
+                    confirmButton = {},
+                    dismissButton = {
+                        TextButton(onClick = { showFabOptions = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
+
+            if (showDeleteMemberDialog && member != null) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteMemberDialog = false },
+                    title = { Text("Delete ${member.name}?") },
+                    text = {
+                        Text("This will remove ${member.name} from this family group. Memories tagged with their name will be kept but will no longer be associated with this profile.")
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showDeleteMemberDialog = false
+                                viewModel.deleteMember(memberId)
+                                onBack()
+                            }
+                        ) {
+                            Text("Delete", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeleteMemberDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
+
             if (showBottomSheet) {
                 ModalBottomSheet(
                     onDismissRequest = { showBottomSheet = false },
@@ -309,6 +617,7 @@ fun RemineraHomeScreen(
                 ) {
                     val context = LocalContext.current
                     AddMemoryBottomSheetContent(
+                        selectedPersonTag = member?.name,
                         onSave = { title, type, notes, personTag, mediaUri, secondaryMediaType, secondaryMediaUri ->
                             scope.launch(Dispatchers.IO) {
                                 val localPath = mediaUri?.let { uri ->
@@ -423,6 +732,7 @@ private fun MemoryLibraryContent(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun MemoryEntryCard(
     entry: MemoryEntryEntity,
     groupId: Long,
@@ -682,6 +992,7 @@ private fun MemoryEntryCard(
 
 @Composable
 private fun AddMemoryBottomSheetContent(
+    selectedPersonTag: String? = null,
     onSave: (
         title: String,
         type: MemoryType,
@@ -695,7 +1006,6 @@ private fun AddMemoryBottomSheetContent(
     var title by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf<MemoryType?>(null) }
     var notes by remember { mutableStateOf("") }
-    var personTag by remember { mutableStateOf("") }
     var mediaUri by remember { mutableStateOf<Uri?>(null) }
 
     var secondaryMediaType by remember { mutableStateOf<MemoryType?>(null) }
@@ -967,23 +1277,42 @@ private fun AddMemoryBottomSheetContent(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        OutlinedTextField(
-            value = personTag,
-            onValueChange = { personTag = it },
-            label = { Text("Who is this about? (optional)") },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                focusedLabelColor = MaterialTheme.colorScheme.primary,
-                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                cursorColor = MaterialTheme.colorScheme.primary,
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-            ),
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (selectedPersonTag != null) {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "This memory is about",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp
+                        )
+                        Text(
+                            text = selectedPersonTag,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -1211,7 +1540,7 @@ private fun AddMemoryBottomSheetContent(
             onClick = {
                 selectedType?.let { type ->
                     val notesValue = notes.ifBlank { null }
-                    val personTagValue = personTag.ifBlank { null }
+                    val personTagValue = selectedPersonTag
                     val effectiveSecondaryType = if (secondaryMediaUri != null) secondaryMediaType else null
                     onSave(title, type, notesValue, personTagValue, mediaUri, effectiveSecondaryType, secondaryMediaUri)
                 }

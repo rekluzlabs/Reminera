@@ -1,0 +1,3 @@
+- `[x]` Add pinch-to-zoom gesture support to `BiographyScreen.kt` profile viewer
+- `[x]` Update rotation button UI in `BiographyScreen.kt`
+- `[x]` Verify changes with build and manual check (simulated)
