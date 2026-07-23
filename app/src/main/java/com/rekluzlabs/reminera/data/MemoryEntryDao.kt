@@ -26,6 +26,9 @@ interface MemoryEntryDao {
     @Query("SELECT * FROM memory_entries WHERE groupId = :groupId ORDER BY dateCaptured DESC")
     fun getEntriesByGroupId(groupId: Long): Flow<List<MemoryEntryEntity>>
 
+    @Query("SELECT * FROM memory_entries WHERE groupId = :groupId AND personTag = :personTag ORDER BY dateCaptured DESC")
+    fun getEntriesByGroupIdAndPersonTag(groupId: Long, personTag: String): Flow<List<MemoryEntryEntity>>
+
     @Query("SELECT * FROM memory_entries WHERE id = :id")
     fun getEntryById(id: String): Flow<MemoryEntryEntity?>
 

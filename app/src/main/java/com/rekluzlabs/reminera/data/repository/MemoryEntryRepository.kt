@@ -11,6 +11,9 @@ class MemoryEntryRepository(private val dao: MemoryEntryDao) {
     fun getEntriesByGroupId(groupId: Long): Flow<List<MemoryEntryEntity>> =
         dao.getEntriesByGroupId(groupId)
 
+    fun getEntriesByGroupIdAndPersonTag(groupId: Long, personTag: String): Flow<List<MemoryEntryEntity>> =
+        dao.getEntriesByGroupIdAndPersonTag(groupId, personTag)
+
     fun getEntriesByPersonTag(personTag: String): Flow<List<MemoryEntryEntity>> =
         dao.getEntriesByPersonTag(personTag)
 

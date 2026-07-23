@@ -33,6 +33,14 @@ class FamilyGroupsViewModel(private val dao: FamilyGroupDao) : ViewModel() {
         groups.associate { it.id to (countMap[it.id] ?: 0) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
+    val memberCounts: StateFlow<Map<Long, Int>> = combine(
+        dao.getAllOrderedBySortOrder(),
+        dao.getMemberCounts()
+    ) { groups, counts ->
+        val countMap = counts.associate { it.groupId to it.cnt }
+        groups.associate { it.id to (countMap[it.id] ?: 0) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
     fun addGroup(type: GroupType, customName: String? = null) {
         viewModelScope.launch {
             val currentList = groups.value
