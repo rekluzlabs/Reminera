@@ -83,14 +83,11 @@ fun RemineraSplashScreen(onBegin: () -> Unit) {
     }
 
     fun openBatteryOptimizationSettings() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:${context.packageName}")
-            }
-            requestIgnoreBatteryOptimization.launch(intent)
-        } else {
-            onBegin()
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.parse("package:${context.packageName}")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
+        requestIgnoreBatteryOptimization.launch(intent)
     }
 
     val requestPermissions = rememberLauncherForActivityResult(
@@ -286,7 +283,15 @@ fun RemineraSplashScreen(onBegin: () -> Unit) {
                             textAlign = TextAlign.Center,
                             lineHeight = 22.sp
                         )
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Once the settings open, tap \"Battery\" then select \"Unrestricted\".",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 18.sp
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
                         Button(
                             onClick = { openBatteryOptimizationSettings() },
                             shape = RoundedCornerShape(28.dp),

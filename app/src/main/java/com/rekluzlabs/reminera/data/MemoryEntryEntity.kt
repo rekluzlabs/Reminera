@@ -25,7 +25,8 @@ data class MemoryEntryEntity(
     // plays alongside the photo in the full-screen viewer. Null for all
     // other entries, and null on PHOTO entries with no attachment.
     val secondaryMediaPath: String? = null,
-    val secondaryMediaType: String? = null   // "AUDIO" or "VIDEO"
+    val secondaryMediaType: String? = null,  // "AUDIO" or "VIDEO"
+    val sortOrder: Int = 0
 )
 
 object Converters {

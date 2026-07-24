@@ -1,9 +1,7 @@
 package com.rekluzlabs.reminera.ui.detail
 
 import android.graphics.BitmapFactory
-import android.media.MediaPlayer
 import android.net.Uri
-import android.widget.VideoView
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -65,10 +63,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.ui.PlayerView
 import com.rekluzlabs.reminera.data.FamilyGroupEntity
 import com.rekluzlabs.reminera.data.MemoryEntryEntity
 import com.rekluzlabs.reminera.data.RemineraDatabase
 import com.rekluzlabs.reminera.util.MediaSaver
+import com.rekluzlabs.reminera.util.PlaybackManager
 import java.io.File
 
 @Composable
@@ -394,13 +394,22 @@ private fun ViewPhotoPreview(
 @Composable
 private fun ViewVideoPreview(uri: Uri, shouldPause: Boolean, onFullScreenClick: () -> Unit) {
     val context = LocalContext.current
-    var isPlaying by remember { mutableStateOf(false) }
-    var videoView by remember { mutableStateOf<VideoView?>(null) }
+    val key = remember(uri) { "detail_video_$uri" }
+    val playbackManager = remember(uri) {
+        PlaybackManager.getInstance(context, key)
+    }
+
+    val isPlaying by playbackManager.isPlaying.collectAsState()
 
     LaunchedEffect(shouldPause) {
         if (shouldPause) {
-            videoView?.pause()
-            isPlaying = false
+            PlaybackManager.release(key)
+        }
+    }
+
+    DisposableEffect(uri) {
+        onDispose {
+            PlaybackManager.release(key)
         }
     }
 
@@ -413,10 +422,15 @@ private fun ViewVideoPreview(uri: Uri, shouldPause: Boolean, onFullScreenClick: 
     ) {
         AndroidView(
             factory = { ctx ->
-                VideoView(ctx).apply {
-                    setVideoURI(uri)
-                    setOnPreparedListener { it.isLooping = true }
-                    videoView = this
+                PlayerView(ctx).apply {
+                    player = playbackManager.getOrCreatePlayer()
+                    useController = false
+                }
+            },
+            update = { playerView ->
+                val player = playbackManager.getOrCreatePlayer()
+                if (playerView.player != player) {
+                    playerView.player = player
                 }
             },
             modifier = Modifier.fillMaxSize()
@@ -438,14 +452,10 @@ private fun ViewVideoPreview(uri: Uri, shouldPause: Boolean, onFullScreenClick: 
 
         IconButton(
             onClick = {
-                videoView?.let { vv ->
-                    if (vv.isPlaying) {
-                        vv.pause()
-                        isPlaying = false
-                    } else {
-                        vv.start()
-                        isPlaying = true
-                    }
+                if (!playbackManager.isPrepared.value) {
+                    playbackManager.prepareAndPlay(uri)
+                } else {
+                    playbackManager.togglePlayPause()
                 }
             },
             modifier = Modifier
@@ -465,31 +475,23 @@ private fun ViewVideoPreview(uri: Uri, shouldPause: Boolean, onFullScreenClick: 
 @Composable
 private fun ViewAudioPreview(uri: Uri, title: String, shouldPause: Boolean) {
     val context = LocalContext.current
-    var isPlaying by remember { mutableStateOf(false) }
-    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    val key = remember(uri) { "detail_audio_$uri" }
+    val playbackManager = remember(uri) {
+        PlaybackManager.getInstance(context, key)
+    }
+
+    val isPlaying by playbackManager.isPlaying.collectAsState()
 
     LaunchedEffect(shouldPause) {
         if (shouldPause) {
-            mediaPlayer?.pause()
-            isPlaying = false
+            PlaybackManager.release(key)
         }
     }
 
     DisposableEffect(uri) {
-        val player = MediaPlayer().apply {
-            setDataSource(context, uri)
-            setOnPreparedListener {
-                mediaPlayer = this
-            }
-            setOnCompletionListener {
-                isPlaying = false
-            }
-            prepareAsync()
-        }
-
+        playbackManager.prepareAndPlay(uri)
         onDispose {
-            player.release()
-            mediaPlayer = null
+            PlaybackManager.release(key)
         }
     }
 
@@ -520,17 +522,7 @@ private fun ViewAudioPreview(uri: Uri, title: String, shouldPause: Boolean) {
         Spacer(modifier = Modifier.height(8.dp))
 
         IconButton(
-            onClick = {
-                mediaPlayer?.let { mp ->
-                    if (mp.isPlaying) {
-                        mp.pause()
-                        isPlaying = false
-                    } else {
-                        mp.start()
-                        isPlaying = true
-                    }
-                }
-            }
+            onClick = { playbackManager.togglePlayPause() }
         ) {
             Icon(
                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,

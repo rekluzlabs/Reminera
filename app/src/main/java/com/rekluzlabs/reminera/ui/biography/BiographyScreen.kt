@@ -1,7 +1,6 @@
 package com.rekluzlabs.reminera.ui.biography
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -39,6 +38,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Delete
@@ -46,9 +46,11 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -59,9 +61,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -69,6 +76,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -79,6 +87,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -92,9 +101,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rekluzlabs.reminera.data.StoryEntryEntity
 import com.rekluzlabs.reminera.ui.editor.ImageEditorScreen
+import com.rekluzlabs.reminera.ui.home.MediaAction
+import com.rekluzlabs.reminera.ui.home.MediaItemMenuSheet
+import com.rekluzlabs.reminera.ui.home.MediaMenuState
 import com.rekluzlabs.reminera.ui.home.RemineraViewModel
 import com.rekluzlabs.reminera.util.AudioRecorder
 import com.rekluzlabs.reminera.util.MediaSaver
+import com.rekluzlabs.reminera.util.PlaybackManager
 import com.rekluzlabs.reminera.util.copyUriToInternal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -125,6 +138,8 @@ fun BiographyScreen(
     var showFabOptions by remember { mutableStateOf(false) }
     var fullScreenPhotoUri by remember { mutableStateOf<String?>(null) }
     var fullScreenEntryId by remember { mutableStateOf<String?>(null) }
+    var fullScreenVideoUri by remember { mutableStateOf<String?>(null) }
+    var fullScreenAudioUri by remember { mutableStateOf<String?>(null) }
     var showImageEditor by remember { mutableStateOf<Uri?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -304,6 +319,11 @@ fun BiographyScreen(
     }
 
     var showMediaOptions by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var renameEntryId by remember { mutableStateOf<String?>(null) }
+    var renameCurrentTitle by remember { mutableStateOf("") }
+    var mediaMenuState by remember { mutableStateOf<MediaMenuState?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val bioPhoto = remember(biography?.photoUri) {
         biography?.photoUri?.let { uriStr ->
@@ -544,45 +564,34 @@ fun BiographyScreen(
                                                     fullScreenPhotoUri = it
                                                     fullScreenEntryId = mediaEntry.id
                                                 }
-                                                "video" -> {
-                                                    mediaEntry.mediaUri?.let { uri ->
-                                                        val contentUri = try {
-                                                            val file = File(uri)
-                                                            if (file.exists()) {
-                                                                FileProvider.getUriForFile(context, "com.rekluzlabs.reminera.fileprovider", file)
-                                                            } else {
-                                                                Uri.parse(uri)
-                                                            }
-                                                        } catch (_: Exception) {
-                                                            Uri.parse(uri)
-                                                        }
-                                                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                                                            setDataAndType(contentUri, "video/*")
-                                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                        }
-                                                        context.startActivity(intent)
+                                                "video" -> mediaEntry.mediaUri?.let { uri ->
+                                                    val file = File(uri)
+                                                    if (file.exists()) {
+                                                        fullScreenVideoUri = uri
                                                     }
                                                 }
-                                                "audio" -> {
-                                                    mediaEntry.mediaUri?.let { uri ->
-                                                        val contentUri = try {
-                                                            val file = File(uri)
-                                                            if (file.exists()) {
-                                                                FileProvider.getUriForFile(context, "com.rekluzlabs.reminera.fileprovider", file)
-                                                            } else {
-                                                                Uri.parse(uri)
-                                                            }
-                                                        } catch (_: Exception) {
-                                                            Uri.parse(uri)
-                                                        }
-                                                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                                                            setDataAndType(contentUri, "audio/*")
-                                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                        }
-                                                        context.startActivity(intent)
+                                                "audio" -> mediaEntry.mediaUri?.let { uri ->
+                                                    val file = File(uri)
+                                                    if (file.exists()) {
+                                                        fullScreenAudioUri = uri
                                                     }
                                                 }
                                             }
+                                        },
+                                        onRename = { mediaEntry ->
+                                            renameEntryId = mediaEntry.id
+                                            renameCurrentTitle = mediaEntry.textContent ?: mediaEntry.type.replaceFirstChar { it.uppercase() }
+                                            showRenameDialog = true
+                                        },
+                                        onMenuClick = { mediaEntry ->
+                                            val memberName = biography?.fullName ?: memberName
+                                            mediaMenuState = MediaMenuState(
+                                                entryId = mediaEntry.id,
+                                                entryTitle = mediaEntry.textContent ?: mediaEntry.type.replaceFirstChar { it.uppercase() },
+                                                entryType = mediaEntry.type,
+                                                currentMemberName = memberName,
+                                                members = emptyList()
+                                            )
                                         }
                                     )
                                 }
@@ -802,6 +811,14 @@ fun BiographyScreen(
             )
         }
 
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 88.dp)
+                .navigationBarsPadding()
+        )
+
         fullScreenPhotoUri?.let { fullUri ->
             Box(
                 modifier = Modifier
@@ -928,6 +945,30 @@ fun BiographyScreen(
         }
     }
 
+    fullScreenVideoUri?.let { videoUri ->
+        val videoFile = remember(videoUri) { File(videoUri) }
+        if (videoFile.exists()) {
+            BiographyFullScreenVideo(
+                videoUri = videoUri,
+                onClose = { fullScreenVideoUri = null }
+            )
+        } else {
+            fullScreenVideoUri = null
+        }
+    }
+
+    fullScreenAudioUri?.let { audioUri ->
+        val audioFile = remember(audioUri) { File(audioUri) }
+        if (audioFile.exists()) {
+            BiographyFullScreenAudio(
+                audioUri = audioUri,
+                onClose = { fullScreenAudioUri = null }
+            )
+        } else {
+            fullScreenAudioUri = null
+        }
+    }
+
     editingSection?.let { section ->
         SectionEditSheet(
             sectionType = section.type,
@@ -990,6 +1031,66 @@ fun BiographyScreen(
         )
     }
 
+    val bioActionResult by viewModel.mediaActionResult.collectAsState()
+    LaunchedEffect(bioActionResult) {
+        bioActionResult?.let { result ->
+            val message = when (result) {
+                is com.rekluzlabs.reminera.ui.home.MediaActionResult.Success -> "Done"
+                is com.rekluzlabs.reminera.ui.home.MediaActionResult.Error -> result.message
+            }
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearActionResult()
+        }
+    }
+
+    if (showRenameDialog && renameEntryId != null) {
+        var title by remember { mutableStateOf(renameCurrentTitle) }
+        val isValid = title.isNotBlank()
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Rename") },
+            text = {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Title") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.handleMediaAction(MediaAction.Rename(renameEntryId!!, title.trim()), context)
+                        showRenameDialog = false
+                    },
+                    enabled = isValid
+                ) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    mediaMenuState?.let { menuState ->
+        MediaItemMenuSheet(
+            menuState = menuState,
+            onDismiss = { mediaMenuState = null },
+            onAction = { action ->
+                viewModel.handleMediaAction(action, context)
+            }
+        )
+    }
+
     showImageEditor?.let { uri ->
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
             ImageEditorScreen(
@@ -1018,7 +1119,13 @@ fun BiographyScreen(
 }
 
 @Composable
-private fun MediaEntryRow(entry: StoryEntryEntity, context: android.content.Context, onMediaClick: (StoryEntryEntity) -> Unit) {
+private fun MediaEntryRow(
+    entry: StoryEntryEntity,
+    context: android.content.Context,
+    onMediaClick: (StoryEntryEntity) -> Unit,
+    onRename: (StoryEntryEntity) -> Unit = {},
+    onMenuClick: (StoryEntryEntity) -> Unit = {}
+) {
     Card(
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
@@ -1063,16 +1170,39 @@ private fun MediaEntryRow(entry: StoryEntryEntity, context: android.content.Cont
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = entry.type.replaceFirstChar { it.uppercase() },
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = entry.textContent?.takeIf { it.isNotBlank() }
+                            ?: entry.type.replaceFirstChar { it.uppercase() },
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Rename",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier
+                            .size(14.dp)
+                            .clickable { onRename(entry) }
+                    )
+                }
                 Text(
                     text = SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(entry.recordedAt)),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp
+                )
+            }
+            IconButton(
+                onClick = { onMenuClick(entry) },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "Options",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
@@ -1141,4 +1271,370 @@ private fun SectionCard(
             Text(">", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 18.sp)
         }
     }
+}
+
+@Composable
+private fun BiographyFullScreenVideo(
+    videoUri: String,
+    onClose: () -> Unit
+) {
+    val context = LocalContext.current
+    val uri = remember(videoUri) { Uri.fromFile(File(videoUri)) }
+    val key = remember(videoUri) { "bio_video_$videoUri" }
+    val playbackManager = remember(videoUri) {
+        PlaybackManager.getInstance(context, key)
+    }
+
+    val isPlaying by playbackManager.isPlaying.collectAsState()
+    val currentPosition by playbackManager.currentPosition.collectAsState()
+    val duration by playbackManager.duration.collectAsState()
+    val isRepeat by playbackManager.isRepeat.collectAsState()
+    val playerError by playbackManager.playerError.collectAsState()
+
+    DisposableEffect(videoUri) {
+        playbackManager.prepareAndPlay(uri)
+        onDispose {
+            PlaybackManager.release(key)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+    ) {
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { ctx ->
+                androidx.media3.ui.PlayerView(ctx).apply {
+                    player = playbackManager.getOrCreatePlayer()
+                    useController = false
+                }
+            },
+            update = { playerView ->
+                val player = playbackManager.getOrCreatePlayer()
+                if (playerView.player != player) {
+                    playerView.player = player
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        IconButton(
+            onClick = onClose,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Close",
+                tint = Color.White
+            )
+        }
+
+        if (playerError != null) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Videocam,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = playerError ?: "Playback failed",
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .padding(bottom = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            LinearProgressIndicator(
+                progress = { currentPosition },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = Color.White,
+                trackColor = Color.White.copy(alpha = 0.3f),
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "${formatBioTime(playbackManager.currentPositionMs())} / ${formatBioTime(playbackManager.durationMs())}",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { playbackManager.toggleRepeat() }) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Repeat",
+                        tint = if (isRepeat) Color(0xFF00BCD4) else Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                IconButton(onClick = { playbackManager.seekRelative(-10000) }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Rewind 10s",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f))
+                ) {
+                    IconButton(
+                        onClick = { playbackManager.togglePlayPause() },
+                        modifier = Modifier.size(56.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Text(
+                                text = if (isPlaying) "PAUSE" else "PLAY",
+                                color = Color.White,
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                IconButton(onClick = { playbackManager.seekRelative(10000) }) {
+                    Icon(
+                        imageVector = Icons.Default.Videocam,
+                        contentDescription = "Forward 10s",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                IconButton(onClick = { playbackManager.stop() }) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Stop",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BiographyFullScreenAudio(
+    audioUri: String,
+    onClose: () -> Unit
+) {
+    val context = LocalContext.current
+    val uri = remember(audioUri) { Uri.fromFile(File(audioUri)) }
+    val key = remember(audioUri) { "bio_audio_$audioUri" }
+    val playbackManager = remember(audioUri) {
+        PlaybackManager.getInstance(context, key)
+    }
+
+    val isPlaying by playbackManager.isPlaying.collectAsState()
+    val currentPosition by playbackManager.currentPosition.collectAsState()
+    val duration by playbackManager.duration.collectAsState()
+    val isRepeat by playbackManager.isRepeat.collectAsState()
+    val playerError by playbackManager.playerError.collectAsState()
+
+    DisposableEffect(audioUri) {
+        playbackManager.prepareAndPlay(uri)
+        onDispose {
+            PlaybackManager.release(key)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (playerError != null) {
+                Icon(
+                    imageVector = Icons.Default.Audiotrack,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                    modifier = Modifier.size(72.dp)
+                )
+
+                Spacer(modifier = Modifier.size(16.dp))
+
+                Text(
+                    text = playerError ?: "Playback failed",
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Audiotrack,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(72.dp)
+                )
+
+                Spacer(modifier = Modifier.size(16.dp))
+
+                Text(
+                    text = "Audio Recording",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            LinearProgressIndicator(
+                progress = { currentPosition },
+                modifier = Modifier
+                    .fillMaxWidth(0.8f)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = Color.White,
+                trackColor = Color.White.copy(alpha = 0.3f),
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "${formatBioTime(playbackManager.currentPositionMs())} / ${formatBioTime(playbackManager.durationMs())}",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 13.sp
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { playbackManager.toggleRepeat() }) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Repeat",
+                        tint = if (isRepeat) Color(0xFF00BCD4) else Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                IconButton(onClick = { playbackManager.seekRelative(-10000) }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Rewind 10s",
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f))
+                ) {
+                    IconButton(
+                        onClick = { playbackManager.togglePlayPause() },
+                        modifier = Modifier.size(64.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Text(
+                                text = if (isPlaying) "PAUSE" else "PLAY",
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                IconButton(onClick = { playbackManager.seekRelative(10000) }) {
+                    Icon(
+                        imageVector = Icons.Default.Videocam,
+                        contentDescription = "Forward 10s",
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+
+                IconButton(onClick = { playbackManager.stop() }) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Stop",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+        }
+
+        IconButton(
+            onClick = onClose,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Close",
+                tint = Color.White
+            )
+        }
+    }
+}
+
+private fun formatBioTime(millis: Long): String {
+    val minutes = java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(millis)
+    val seconds = java.util.concurrent.TimeUnit.MILLISECONDS.toSeconds(millis) - java.util.concurrent.TimeUnit.MINUTES.toSeconds(minutes)
+    return String.format("%d:%02d", minutes, seconds)
 }

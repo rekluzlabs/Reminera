@@ -1,4 +1,4 @@
-package com.rekluzlabs.reminera.ui.settings
+package com.rekluzlabs.reminera.ui.settings.themes
 
 enum class ThemeMode(val displayName: String) {
     LIGHT("Blank Page"),

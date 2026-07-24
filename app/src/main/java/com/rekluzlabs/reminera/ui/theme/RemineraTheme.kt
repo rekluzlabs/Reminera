@@ -11,7 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-import com.rekluzlabs.reminera.ui.settings.ThemeMode
+import com.rekluzlabs.reminera.ui.settings.themes.ThemeMode
 
 private val SandBackground = Color(0xFFFDFBF7)
 private val CardSurface = Color(0xFFF3EFE6)

@@ -35,9 +35,12 @@ import com.rekluzlabs.reminera.ui.home.FamilyMemberListScreen
 import com.rekluzlabs.reminera.ui.home.RemineraHomeScreen
 import com.rekluzlabs.reminera.ui.home.RemineraViewModel
 import com.rekluzlabs.reminera.ui.home.RemineraViewModelFactory
+import com.rekluzlabs.reminera.ui.recording.AudioRecordScreen
+import com.rekluzlabs.reminera.ui.recording.VideoRecordScreen
 import com.rekluzlabs.reminera.ui.settings.SettingsScreen
-import com.rekluzlabs.reminera.ui.settings.ThemeManager
-import com.rekluzlabs.reminera.ui.settings.ThemeMode
+import com.rekluzlabs.reminera.ui.settings.ThemeSettingsScreen
+import com.rekluzlabs.reminera.ui.settings.themes.ThemeManager
+import com.rekluzlabs.reminera.ui.settings.themes.ThemeMode
 import com.rekluzlabs.reminera.ui.splash.RemineraSplashScreen
 import com.rekluzlabs.reminera.ui.theme.RemineraTheme
 import com.rekluzlabs.reminera.ui.tutorial.TutorialRepository
@@ -64,6 +67,7 @@ class MainActivity : ComponentActivity() {
             var showSplash by rememberSaveable { mutableStateOf(true) }
             var themeMode by rememberSaveable { mutableStateOf(themeManager.getThemeMode()) }
             var showSettings by remember { mutableStateOf(false) }
+            var settingsSection by remember { mutableStateOf("main") }
 
             RemineraTheme(themeMode = themeMode) {
                 when {
@@ -71,22 +75,40 @@ class MainActivity : ComponentActivity() {
                         RemineraSplashScreen(onBegin = { showSplash = false })
                     }
                     showSettings -> {
-                        BackHandler { showSettings = false }
-                        SettingsScreen(
-                            currentTheme = themeMode,
-                            onThemeSelected = { mode ->
-                                themeMode = mode
-                                themeManager.setThemeMode(mode)
-                            },
-                            onBack = { showSettings = false }
-                        )
+                        BackHandler {
+                            if (settingsSection == "themes") {
+                                settingsSection = "main"
+                            } else {
+                                showSettings = false
+                            }
+                        }
+
+                        if (settingsSection == "themes") {
+                            ThemeSettingsScreen(
+                                currentTheme = themeMode,
+                                onThemeSelected = { mode ->
+                                    themeMode = mode
+                                    themeManager.setThemeMode(mode)
+                                },
+                                onBack = { settingsSection = "main" }
+                            )
+                        } else {
+                            SettingsScreen(
+                                currentTheme = themeMode,
+                                onNavigateToThemes = { settingsSection = "themes" },
+                                onBack = { showSettings = false }
+                            )
+                        }
                     }
                     else -> {
                         RemineraNavHost(
                             viewModel = viewModel,
                             themeManager = themeManager,
                             themeMode = themeMode,
-                            onSettingsClick = { showSettings = true }
+                            onSettingsClick = { 
+                                settingsSection = "main"
+                                showSettings = true 
+                            }
                         )
                     }
                 }
@@ -195,6 +217,46 @@ private fun RemineraNavHost(
                 biographyId = biographyId,
                 viewModel = bioViewModel,
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = "record_video/{groupId}/{personId}",
+            arguments = listOf(
+                navArgument("groupId") { type = NavType.LongType },
+                navArgument("personId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+            val groupId = backStackEntry.arguments?.getLong("groupId") ?: return@composable
+            val personId = backStackEntry.arguments?.getLong("personId") ?: return@composable
+            VideoRecordScreen(
+                groupId = groupId,
+                personId = personId,
+                onBack = { navController.popBackStack() },
+                onRecordingComplete = { filePath ->
+                    navController.previousBackStackEntry?.savedStateHandle?.set("recordedFilePath", filePath)
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(
+            route = "record_audio/{groupId}/{personId}",
+            arguments = listOf(
+                navArgument("groupId") { type = NavType.LongType },
+                navArgument("personId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+            val groupId = backStackEntry.arguments?.getLong("groupId") ?: return@composable
+            val personId = backStackEntry.arguments?.getLong("personId") ?: return@composable
+            AudioRecordScreen(
+                groupId = groupId,
+                personId = personId,
+                onBack = { navController.popBackStack() },
+                onRecordingComplete = { filePath ->
+                    navController.previousBackStackEntry?.savedStateHandle?.set("recordedFilePath", filePath)
+                    navController.popBackStack()
+                }
             )
         }
     }

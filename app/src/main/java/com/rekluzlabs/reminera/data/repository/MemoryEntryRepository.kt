@@ -31,4 +31,13 @@ class MemoryEntryRepository(private val dao: MemoryEntryDao) {
     suspend fun update(entry: MemoryEntryEntity) = dao.update(entry)
 
     suspend fun delete(entry: MemoryEntryEntity) = dao.delete(entry)
+
+    suspend fun updateSortOrders(idToOrderMap: Map<String, Int>) =
+        dao.updateSortOrders(idToOrderMap)
+
+    suspend fun updatePersonTag(id: String, personTag: String?) =
+        dao.updatePersonTag(id, personTag)
+
+    suspend fun getEntriesByGroupIdAndPersonTagList(groupId: Long, personTag: String): List<MemoryEntryEntity> =
+        dao.getEntriesByGroupIdAndPersonTagList(groupId, personTag)
 }

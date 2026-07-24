@@ -1,5 +1,6 @@
 package com.rekluzlabs.reminera.ui.home
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -9,6 +10,8 @@ import com.rekluzlabs.reminera.data.MemoryType
 import com.rekluzlabs.reminera.data.UploadStatus
 import com.rekluzlabs.reminera.data.repository.FamilyMemberRepository
 import com.rekluzlabs.reminera.data.repository.MemoryEntryRepository
+import com.rekluzlabs.reminera.util.DownloadHelper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +24,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 
 sealed interface MemoryLibraryUiState {
@@ -41,6 +46,9 @@ class RemineraViewModel(
 
     private val _uiState = MutableStateFlow<MemoryLibraryUiState>(MemoryLibraryUiState.Loading)
     val uiState: StateFlow<MemoryLibraryUiState> = _uiState.asStateFlow()
+
+    private val _mediaActionResult = MutableStateFlow<MediaActionResult?>(null)
+    val mediaActionResult: StateFlow<MediaActionResult?> = _mediaActionResult.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -76,6 +84,10 @@ class RemineraViewModel(
         _personTagFilter.value = personTag
     }
 
+    fun clearActionResult() {
+        _mediaActionResult.value = null
+    }
+
     fun addRecordedMemory(
         title: String,
         type: MemoryType,
@@ -86,6 +98,7 @@ class RemineraViewModel(
     ) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
+            val maxSortOrder = getMaxSortOrder(groupId ?: _groupId.value ?: 0L, personTag)
             val entry = MemoryEntryEntity(
                 id = UUID.randomUUID().toString(),
                 groupId = groupId ?: _groupId.value ?: 0L,
@@ -100,7 +113,8 @@ class RemineraViewModel(
                 durationMillis = durationMillis,
                 isImported = false,
                 uploadStatus = UploadStatus.NOT_UPLOADED.name,
-                hostedUrl = null
+                hostedUrl = null,
+                sortOrder = maxSortOrder + 1
             )
             repository.insert(entry)
         }
@@ -116,6 +130,7 @@ class RemineraViewModel(
         secondaryMediaType: String? = null
     ) {
         viewModelScope.launch {
+            val maxSortOrder = getMaxSortOrder(groupId ?: _groupId.value ?: 0L, personTag)
             val entry = MemoryEntryEntity(
                 id = UUID.randomUUID().toString(),
                 groupId = groupId ?: _groupId.value ?: 0L,
@@ -132,7 +147,8 @@ class RemineraViewModel(
                 uploadStatus = UploadStatus.NOT_UPLOADED.name,
                 hostedUrl = null,
                 secondaryMediaPath = secondaryMediaPath,
-                secondaryMediaType = secondaryMediaType
+                secondaryMediaType = secondaryMediaType,
+                sortOrder = maxSortOrder + 1
             )
             repository.insert(entry)
         }
@@ -208,7 +224,111 @@ class RemineraViewModel(
             val entry = repository.getEntryById(id).firstOrNull()
             if (entry != null) {
                 repository.delete(entry)
+                withContext(Dispatchers.IO) {
+                    try {
+                        val file = File(entry.localFilePath)
+                        if (file.exists()) file.delete()
+                        entry.thumbnailPath?.let { tp ->
+                            val thumbFile = File(tp)
+                            if (thumbFile.exists()) thumbFile.delete()
+                        }
+                    } catch (_: Exception) {}
+                }
             }
+        }
+    }
+
+    fun handleMediaAction(action: MediaAction, context: Context) {
+        viewModelScope.launch {
+            when (action) {
+                is MediaAction.Rename -> {
+                    val entry = repository.getEntryById(action.entryId).firstOrNull()
+                    if (entry != null) {
+                        val newFilePath = withContext(Dispatchers.IO) {
+                            val oldFile = java.io.File(entry.localFilePath)
+                            if (oldFile.exists() && oldFile.parentFile != null) {
+                                val extension = oldFile.extension.ifBlank {
+                                    when (entry.type) {
+                                        "PHOTO" -> "jpg"
+                                        "VIDEO" -> "mp4"
+                                        "AUDIO" -> "mp4"
+                                        else -> "bin"
+                                    }
+                                }
+                                val sanitized = action.newTitle.replace(Regex("[/\\\\:*?\"<>|]"), "_")
+                                val newFile = java.io.File(oldFile.parentFile, "${sanitized}_${entry.id.take(8)}.$extension")
+                                if (oldFile.renameTo(newFile)) newFile.absolutePath else entry.localFilePath
+                            } else {
+                                entry.localFilePath
+                            }
+                        }
+                        repository.update(entry.copy(title = action.newTitle, localFilePath = newFilePath))
+                        _mediaActionResult.value = MediaActionResult.Success
+                    } else {
+                        _mediaActionResult.value = MediaActionResult.Error("Entry not found")
+                    }
+                }
+
+                is MediaAction.Move -> {
+                    val entry = repository.getEntryById(action.entryId).firstOrNull()
+                    if (entry != null) {
+                        repository.update(
+                            entry.copy(
+                                groupId = _groupId.value ?: entry.groupId,
+                                personTag = action.targetMemberName
+                            )
+                        )
+                        _mediaActionResult.value = MediaActionResult.Success
+                    } else {
+                        _mediaActionResult.value = MediaActionResult.Error("Entry not found")
+                    }
+                }
+
+                is MediaAction.Download -> {
+                    val entry = repository.getEntryById(action.entryId).firstOrNull()
+                    if (entry != null) {
+                        val success = withContext(Dispatchers.IO) {
+                            DownloadHelper.downloadToDownloads(context, entry)
+                        }
+                        _mediaActionResult.value = if (success) {
+                            MediaActionResult.Success
+                        } else {
+                            MediaActionResult.Error("Failed to download")
+                        }
+                    } else {
+                        _mediaActionResult.value = MediaActionResult.Error("Entry not found")
+                    }
+                }
+
+                is MediaAction.Delete -> {
+                    val entry = repository.getEntryById(action.entryId).firstOrNull()
+                    if (entry != null) {
+                        repository.delete(entry)
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val file = File(entry.localFilePath)
+                                if (file.exists()) file.delete()
+                                entry.thumbnailPath?.let { tp ->
+                                    val thumbFile = File(tp)
+                                    if (thumbFile.exists()) thumbFile.delete()
+                                }
+                            } catch (_: Exception) {}
+                        }
+                        _mediaActionResult.value = MediaActionResult.Success
+                    } else {
+                        _mediaActionResult.value = MediaActionResult.Error("Entry not found")
+                    }
+                }
+            }
+        }
+    }
+
+    fun commitReorder(reorderedIds: List<String>) {
+        viewModelScope.launch {
+            val idToOrder = reorderedIds.mapIndexed { index, id ->
+                id to index
+            }.toMap()
+            repository.updateSortOrders(idToOrder)
         }
     }
 
@@ -267,6 +387,12 @@ class RemineraViewModel(
         viewModelScope.launch {
             memberRepository.deleteById(id)
         }
+    }
+
+    private suspend fun getMaxSortOrder(groupId: Long, personTag: String?): Int {
+        if (personTag == null) return 0
+        val entries = repository.getEntriesByGroupIdAndPersonTagList(groupId, personTag)
+        return entries.maxOfOrNull { it.sortOrder } ?: 0
     }
 }
 

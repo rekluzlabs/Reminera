@@ -3,10 +3,7 @@ package com.rekluzlabs.reminera.ui.detail
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
-import android.media.MediaPlayer
 import android.net.Uri
-import android.widget.MediaController
-import android.widget.VideoView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -52,6 +49,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -70,6 +68,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import com.rekluzlabs.reminera.data.MemoryEntryEntity
 import com.rekluzlabs.reminera.data.MemoryType
+import com.rekluzlabs.reminera.util.PlaybackManager
 import com.rekluzlabs.reminera.util.copyUriToInternal
 import java.io.File
 
@@ -437,14 +436,29 @@ private fun EditPhotoPreview(uri: Uri) {
 @Composable
 private fun EditVideoPreview(uri: Uri) {
     val context = LocalContext.current
+    val key = remember(uri) { "edit_video_$uri" }
+    val playbackManager = remember(uri) {
+        PlaybackManager.getInstance(context, key)
+    }
+
+    DisposableEffect(uri) {
+        playbackManager.prepareAndPlay(uri)
+        onDispose {
+            PlaybackManager.release(key)
+        }
+    }
 
     AndroidView(
         factory = { ctx ->
-            VideoView(ctx).apply {
-                setVideoURI(uri)
-                setMediaController(MediaController(ctx))
-                setOnPreparedListener { it.isLooping = true }
-                start()
+            androidx.media3.ui.PlayerView(ctx).apply {
+                player = playbackManager.getOrCreatePlayer()
+                useController = true
+            }
+        },
+        update = { playerView ->
+            val player = playbackManager.getOrCreatePlayer()
+            if (playerView.player != player) {
+                playerView.player = player
             }
         },
         modifier = Modifier
@@ -456,24 +470,17 @@ private fun EditVideoPreview(uri: Uri) {
 @Composable
 private fun EditAudioPreview(uri: Uri, title: String) {
     val context = LocalContext.current
-    var isPlaying by remember { mutableStateOf(false) }
-    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    val key = remember(uri) { "edit_audio_$uri" }
+    val playbackManager = remember(uri) {
+        PlaybackManager.getInstance(context, key)
+    }
+
+    val isPlaying by playbackManager.isPlaying.collectAsState()
 
     DisposableEffect(uri) {
-        val player = MediaPlayer().apply {
-            setDataSource(context, uri)
-            setOnPreparedListener {
-                mediaPlayer = this
-            }
-            setOnCompletionListener {
-                isPlaying = false
-            }
-            prepareAsync()
-        }
-
+        playbackManager.prepareAndPlay(uri)
         onDispose {
-            player.release()
-            mediaPlayer = null
+            PlaybackManager.release(key)
         }
     }
 
@@ -493,17 +500,7 @@ private fun EditAudioPreview(uri: Uri, title: String) {
         Spacer(modifier = Modifier.height(8.dp))
 
         IconButton(
-            onClick = {
-                mediaPlayer?.let { mp ->
-                    if (mp.isPlaying) {
-                        mp.pause()
-                        isPlaying = false
-                    } else {
-                        mp.start()
-                        isPlaying = true
-                    }
-                }
-            }
+            onClick = { playbackManager.togglePlayPause() }
         ) {
             Icon(
                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,

@@ -1,4 +1,4 @@
-package com.rekluzlabs.reminera.ui.settings
+package com.rekluzlabs.reminera.ui.settings.themes
 
 import android.content.Context
 import android.content.SharedPreferences

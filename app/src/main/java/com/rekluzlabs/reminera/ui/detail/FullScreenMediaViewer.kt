@@ -1,9 +1,7 @@
 package com.rekluzlabs.reminera.ui.detail
 
 import android.graphics.BitmapFactory
-import android.media.MediaPlayer
 import android.net.Uri
-import android.widget.VideoView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,11 +40,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,10 +60,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.ui.PlayerView
 import com.rekluzlabs.reminera.data.MemoryEntryEntity
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import com.rekluzlabs.reminera.util.PlaybackManager
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -220,19 +217,21 @@ private fun FullScreenPhoto(uri: Uri, entry: MemoryEntryEntity) {
 @Composable
 private fun FullScreenPhotoAudioChip(secondaryAudioPath: String) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var isPlaying by remember(secondaryAudioPath) { mutableStateOf(false) }
-    var isRepeat by remember(secondaryAudioPath) { mutableStateOf(false) }
-    var mediaPlayer by remember(secondaryAudioPath) { mutableStateOf<MediaPlayer?>(null) }
-    var currentPosition by remember(secondaryAudioPath) { mutableFloatStateOf(0f) }
-    var duration by remember(secondaryAudioPath) { mutableFloatStateOf(1f) }
+    val key = remember(secondaryAudioPath) { "photo_audio_$secondaryAudioPath" }
+    val playbackManager = remember(secondaryAudioPath) {
+        PlaybackManager.getInstance(context, key)
+    }
 
     DisposableEffect(secondaryAudioPath) {
         onDispose {
-            mediaPlayer?.release()
-            mediaPlayer = null
+            PlaybackManager.release(key)
         }
     }
+
+    val isPlaying by playbackManager.isPlaying.collectAsState()
+    val currentPosition by playbackManager.currentPosition.collectAsState()
+    val duration by playbackManager.duration.collectAsState()
+    val isRepeat by playbackManager.isRepeat.collectAsState()
 
     Box(
         modifier = Modifier
@@ -259,7 +258,7 @@ private fun FullScreenPhotoAudioChip(secondaryAudioPath: String) {
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "${formatTime((currentPosition * duration).toLong())} / ${formatTime(duration.toLong())}",
+                text = "${formatTime(playbackManager.currentPositionMs())} / ${formatTime(playbackManager.durationMs())}",
                 color = Color.White.copy(alpha = 0.7f),
                 fontSize = 12.sp
             )
@@ -270,7 +269,7 @@ private fun FullScreenPhotoAudioChip(secondaryAudioPath: String) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { isRepeat = !isRepeat }) {
+                IconButton(onClick = { playbackManager.toggleRepeat() }) {
                     Icon(
                         imageVector = Icons.Default.Repeat,
                         contentDescription = "Repeat",
@@ -280,13 +279,7 @@ private fun FullScreenPhotoAudioChip(secondaryAudioPath: String) {
                 }
 
                 IconButton(
-                    onClick = {
-                        mediaPlayer?.let { mp ->
-                            val newPos = maxOf(0, mp.currentPosition - 10000)
-                            mp.seekTo(newPos)
-                            currentPosition = newPos.toFloat() / mp.duration.toFloat()
-                        }
-                    }
+                    onClick = { playbackManager.seekRelative(-10000) }
                 ) {
                     Icon(
                         imageVector = Icons.Default.FastRewind,
@@ -305,46 +298,10 @@ private fun FullScreenPhotoAudioChip(secondaryAudioPath: String) {
                         onClick = {
                             val file = File(secondaryAudioPath)
                             if (!file.exists()) return@IconButton
-                            val player = mediaPlayer
-                            if (player == null) {
-                                val newPlayer = MediaPlayer().apply {
-                                    setDataSource(context, Uri.fromFile(file))
-                                    setOnPreparedListener {
-                                        start()
-                                        isPlaying = true
-                                        duration = it.duration.toFloat()
-                                        scope.launch {
-                                            while (isActive && isPlaying) {
-                                                currentPosition = currentPosition.coerceAtMost(1f)
-                                                delay(250)
-                                            }
-                                        }
-                                    }
-                                    setOnCompletionListener {
-                                        isPlaying = false
-                                        if (isRepeat) {
-                                            seekTo(0)
-                                            start()
-                                            isPlaying = true
-                                        } else {
-                                            currentPosition = 0f
-                                        }
-                                    }
-                                    prepareAsync()
-                                }
-                                mediaPlayer = newPlayer
-                            } else if (player.isPlaying) {
-                                player.pause()
-                                isPlaying = false
+                            if (!playbackManager.isPrepared.value) {
+                                playbackManager.prepareAndPlay(Uri.fromFile(file))
                             } else {
-                                player.start()
-                                isPlaying = true
-                                scope.launch {
-                                    while (isActive && isPlaying) {
-                                        currentPosition = player.currentPosition.toFloat() / player.duration.toFloat()
-                                        delay(250)
-                                    }
-                                }
+                                playbackManager.togglePlayPause()
                             }
                         },
                         modifier = Modifier.size(56.dp)
@@ -367,13 +324,7 @@ private fun FullScreenPhotoAudioChip(secondaryAudioPath: String) {
                 }
 
                 IconButton(
-                    onClick = {
-                        mediaPlayer?.let { mp ->
-                            val newPos = minOf(mp.duration, mp.currentPosition + 10000)
-                            mp.seekTo(newPos)
-                            currentPosition = newPos.toFloat() / mp.duration.toFloat()
-                        }
-                    }
+                    onClick = { playbackManager.seekRelative(10000) }
                 ) {
                     Icon(
                         imageVector = Icons.Default.FastForward,
@@ -384,14 +335,7 @@ private fun FullScreenPhotoAudioChip(secondaryAudioPath: String) {
                 }
 
                 IconButton(
-                    onClick = {
-                        mediaPlayer?.let { mp ->
-                            mp.seekTo(0)
-                            mp.pause()
-                            isPlaying = false
-                            currentPosition = 0f
-                        }
-                    }
+                    onClick = { playbackManager.stop() }
                 ) {
                     Icon(
                         imageVector = Icons.Default.Stop,
@@ -408,38 +352,34 @@ private fun FullScreenPhotoAudioChip(secondaryAudioPath: String) {
 @Composable
 private fun FullScreenVideo(uri: Uri) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var isPlaying by remember(uri) { mutableStateOf(false) }
-    var isRepeat by remember(uri) { mutableStateOf(false) }
-    var isPrepared by remember(uri) { mutableStateOf(false) }
-    var hasStarted by remember(uri) { mutableStateOf(false) }
-    var videoView by remember(uri) { mutableStateOf<VideoView?>(null) }
-    var mediaPlayer by remember(uri) { mutableStateOf<MediaPlayer?>(null) }
-    var currentPosition by remember(uri) { mutableFloatStateOf(0f) }
-    var duration by remember(uri) { mutableFloatStateOf(1f) }
+    val key = remember(uri) { "video_$uri" }
+    val playbackManager = remember(uri) {
+        PlaybackManager.getInstance(context, key)
+    }
+
+    val isPlaying by playbackManager.isPlaying.collectAsState()
+    val currentPosition by playbackManager.currentPosition.collectAsState()
+    val duration by playbackManager.duration.collectAsState()
+    val isRepeat by playbackManager.isRepeat.collectAsState()
+    val isPrepared by playbackManager.isPrepared.collectAsState()
+    val playerError by playbackManager.playerError.collectAsState()
+
+    DisposableEffect(uri) {
+        playbackManager.prepareAndPlay(uri)
+        onDispose {
+            PlaybackManager.release(key)
+        }
+    }
 
     AndroidView(
         factory = { ctx ->
-            VideoView(ctx).apply {
-                setVideoURI(uri)
-                setOnPreparedListener { mp ->
-                    isPrepared = true
-                    duration = mp.duration.toFloat()
-                    mediaPlayer = mp
-                }
-                setOnCompletionListener {
-                    isPlaying = false
-                    if (isRepeat) {
-                        seekTo(0)
-                        start()
-                        isPlaying = true
-                    } else {
-                        hasStarted = false
-                        currentPosition = 0f
-                    }
-                }
-                videoView = this
+            PlayerView(ctx).apply {
+                player = playbackManager.getOrCreatePlayer()
+                useController = false
             }
+        },
+        update = { playerView ->
+            playerView.player = playbackManager.getOrCreatePlayer()
         },
         modifier = Modifier.fillMaxSize()
     )
@@ -455,7 +395,34 @@ private fun FullScreenVideo(uri: Uri) {
                 .padding(top = 72.dp)
                 .padding(horizontal = 24.dp)
         ) {
-            if (!hasStarted) {
+            if (playerError != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .border(2.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayCircle,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = playerError ?: "Playback failed",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                }
+            } else if (!isPrepared) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -482,7 +449,7 @@ private fun FullScreenVideo(uri: Uri) {
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Tap Play to start video",
+                            text = "Loading...",
                             color = Color.White.copy(alpha = 0.4f),
                             fontSize = 14.sp
                         )
@@ -512,7 +479,7 @@ private fun FullScreenVideo(uri: Uri) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "${formatTime((currentPosition * duration).toLong())} / ${formatTime(duration.toLong())}",
+                text = "${formatTime(playbackManager.currentPositionMs())} / ${formatTime(playbackManager.durationMs())}",
                 color = Color.White.copy(alpha = 0.7f),
                 fontSize = 12.sp
             )
@@ -523,10 +490,7 @@ private fun FullScreenVideo(uri: Uri) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = {
-                    isRepeat = !isRepeat
-                    mediaPlayer?.isLooping = isRepeat
-                }) {
+                IconButton(onClick = { playbackManager.toggleRepeat() }) {
                     Icon(
                         imageVector = Icons.Default.Repeat,
                         contentDescription = "Repeat",
@@ -536,14 +500,7 @@ private fun FullScreenVideo(uri: Uri) {
                 }
 
                 IconButton(
-                    onClick = {
-                        videoView?.let { vv ->
-                            if (!isPrepared) return@let
-                            val newPos = maxOf(0, vv.currentPosition - 10000)
-                            vv.seekTo(newPos)
-                            currentPosition = newPos.toFloat() / vv.duration.toFloat()
-                        }
-                    }
+                    onClick = { playbackManager.seekRelative(-10000) }
                 ) {
                     Icon(
                         imageVector = Icons.Default.FastRewind,
@@ -560,23 +517,7 @@ private fun FullScreenVideo(uri: Uri) {
                 ) {
                     IconButton(
                         onClick = {
-                            videoView?.let { vv ->
-                                if (!isPrepared) return@let
-                                if (vv.isPlaying) {
-                                    vv.pause()
-                                    isPlaying = false
-                                } else {
-                                    vv.start()
-                                    isPlaying = true
-                                    hasStarted = true
-                                    scope.launch {
-                                        while (isActive && isPlaying) {
-                                            currentPosition = vv.currentPosition.toFloat() / vv.duration.toFloat()
-                                            delay(250)
-                                        }
-                                    }
-                                }
-                            }
+                            playbackManager.togglePlayPause()
                         },
                         modifier = Modifier.size(56.dp)
                     ) {
@@ -598,14 +539,7 @@ private fun FullScreenVideo(uri: Uri) {
                 }
 
                 IconButton(
-                    onClick = {
-                        videoView?.let { vv ->
-                            if (!isPrepared) return@let
-                            val newPos = minOf(vv.duration, vv.currentPosition + 10000)
-                            vv.seekTo(newPos)
-                            currentPosition = newPos.toFloat() / vv.duration.toFloat()
-                        }
-                    }
+                    onClick = { playbackManager.seekRelative(10000) }
                 ) {
                     Icon(
                         imageVector = Icons.Default.FastForward,
@@ -616,16 +550,7 @@ private fun FullScreenVideo(uri: Uri) {
                 }
 
                 IconButton(
-                    onClick = {
-                        videoView?.let { vv ->
-                            if (!isPrepared) return@let
-                            vv.seekTo(0)
-                            vv.pause()
-                            isPlaying = false
-                            hasStarted = false
-                            currentPosition = 0f
-                        }
-                    }
+                    onClick = { playbackManager.stop() }
                 ) {
                     Icon(
                         imageVector = Icons.Default.Stop,
@@ -642,36 +567,21 @@ private fun FullScreenVideo(uri: Uri) {
 @Composable
 private fun FullScreenAudio(uri: Uri, title: String) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var isPlaying by remember { mutableStateOf(false) }
-    var isRepeat by remember { mutableStateOf(false) }
-    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
-    var currentPosition by remember { mutableFloatStateOf(0f) }
-    var duration by remember { mutableFloatStateOf(1f) }
+    val key = remember(uri) { "audio_$uri" }
+    val playbackManager = remember(uri) {
+        PlaybackManager.getInstance(context, key)
+    }
+
+    val isPlaying by playbackManager.isPlaying.collectAsState()
+    val currentPosition by playbackManager.currentPosition.collectAsState()
+    val duration by playbackManager.duration.collectAsState()
+    val isRepeat by playbackManager.isRepeat.collectAsState()
+    val playerError by playbackManager.playerError.collectAsState()
 
     DisposableEffect(uri) {
-        val player = MediaPlayer().apply {
-            setDataSource(context, uri)
-            setOnPreparedListener {
-                mediaPlayer = this
-                duration = it.duration.toFloat()
-            }
-            setOnCompletionListener {
-                isPlaying = false
-                if (isRepeat) {
-                    seekTo(0)
-                    start()
-                    isPlaying = true
-                } else {
-                    currentPosition = 0f
-                }
-            }
-            prepareAsync()
-        }
-
+        playbackManager.prepareAndPlay(uri)
         onDispose {
-            player.release()
-            mediaPlayer = null
+            PlaybackManager.release(key)
         }
     }
 
@@ -680,23 +590,43 @@ private fun FullScreenAudio(uri: Uri, title: String) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Default.Audiotrack,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(72.dp)
-            )
+            if (playerError != null) {
+                Icon(
+                    imageVector = Icons.Default.Audiotrack,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                    modifier = Modifier.size(72.dp)
+                )
 
-            Spacer(modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.size(16.dp))
 
-            Text(
-                text = title,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 24.dp)
-            )
+                Text(
+                    text = playerError ?: "Playback failed",
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Audiotrack,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(72.dp)
+                )
+
+                Spacer(modifier = Modifier.size(16.dp))
+
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
 
@@ -713,7 +643,7 @@ private fun FullScreenAudio(uri: Uri, title: String) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "${formatTime((currentPosition * duration).toLong())} / ${formatTime(duration.toLong())}",
+                text = "${formatTime(playbackManager.currentPositionMs())} / ${formatTime(playbackManager.durationMs())}",
                 color = Color.White.copy(alpha = 0.7f),
                 fontSize = 13.sp
             )
@@ -724,7 +654,7 @@ private fun FullScreenAudio(uri: Uri, title: String) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { isRepeat = !isRepeat }) {
+                IconButton(onClick = { playbackManager.toggleRepeat() }) {
                     Icon(
                         imageVector = Icons.Default.Repeat,
                         contentDescription = "Repeat",
@@ -734,13 +664,7 @@ private fun FullScreenAudio(uri: Uri, title: String) {
                 }
 
                 IconButton(
-                    onClick = {
-                        mediaPlayer?.let { mp ->
-                            val newPos = maxOf(0, mp.currentPosition - 10000)
-                            mp.seekTo(newPos)
-                            currentPosition = newPos.toFloat() / mp.duration.toFloat()
-                        }
-                    }
+                    onClick = { playbackManager.seekRelative(-10000) }
                 ) {
                     Icon(
                         imageVector = Icons.Default.FastRewind,
@@ -756,23 +680,7 @@ private fun FullScreenAudio(uri: Uri, title: String) {
                         .background(Color.White.copy(alpha = 0.2f))
                 ) {
                     IconButton(
-                        onClick = {
-                            mediaPlayer?.let { mp ->
-                                if (mp.isPlaying) {
-                                    mp.pause()
-                                    isPlaying = false
-                                } else {
-                                    mp.start()
-                                    isPlaying = true
-                                    scope.launch {
-                                        while (isActive && isPlaying) {
-                                            currentPosition = mp.currentPosition.toFloat() / mp.duration.toFloat()
-                                            delay(250)
-                                        }
-                                    }
-                                }
-                            }
-                        },
+                        onClick = { playbackManager.togglePlayPause() },
                         modifier = Modifier.size(64.dp)
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -793,13 +701,7 @@ private fun FullScreenAudio(uri: Uri, title: String) {
                 }
 
                 IconButton(
-                    onClick = {
-                        mediaPlayer?.let { mp ->
-                            val newPos = minOf(mp.duration, mp.currentPosition + 10000)
-                            mp.seekTo(newPos)
-                            currentPosition = newPos.toFloat() / mp.duration.toFloat()
-                        }
-                    }
+                    onClick = { playbackManager.seekRelative(10000) }
                 ) {
                     Icon(
                         imageVector = Icons.Default.FastForward,
@@ -810,14 +712,7 @@ private fun FullScreenAudio(uri: Uri, title: String) {
                 }
 
                 IconButton(
-                    onClick = {
-                        mediaPlayer?.let { mp ->
-                            mp.seekTo(0)
-                            mp.pause()
-                            isPlaying = false
-                            currentPosition = 0f
-                        }
-                    }
+                    onClick = { playbackManager.stop() }
                 ) {
                     Icon(
                         imageVector = Icons.Default.Stop,

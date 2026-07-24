@@ -2,7 +2,6 @@ package com.rekluzlabs.reminera.ui.settings
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,19 +14,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,21 +38,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rekluzlabs.reminera.BuildConfig
 import com.rekluzlabs.reminera.R
-import com.rekluzlabs.reminera.ui.theme.CinnamonPrimary
-import com.rekluzlabs.reminera.ui.theme.MutedClay
-import com.rekluzlabs.reminera.ui.theme.OlivePrimary
-import com.rekluzlabs.reminera.ui.theme.RosePrimary
+import com.rekluzlabs.reminera.ui.settings.themes.ThemeMode
+import com.rekluzlabs.reminera.ui.theme.RemineraTheme
 
 private val CyanPrimary = Color(0xFF00BCD4)
 
 @Composable
 fun SettingsScreen(
     currentTheme: ThemeMode,
-    onThemeSelected: (ThemeMode) -> Unit,
+    onNavigateToThemes: () -> Unit,
     onBack: () -> Unit
 ) {
     LazyColumn(
@@ -91,22 +86,24 @@ fun SettingsScreen(
         item { Spacer(modifier = Modifier.height(24.dp)) }
 
         item {
-            Text(
-                text = "Theme",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-            )
-        }
-
-        items(ThemeMode.entries.size) { index ->
-            val mode = ThemeMode.entries[index]
-            ThemeOption(
-                mode = mode,
-                isSelected = mode == currentTheme,
-                onClick = { onThemeSelected(mode) }
-            )
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            ) {
+                Column {
+                    SettingsRow(
+                        icon = R.drawable.ic_theme_book,
+                        title = "Themes",
+                        subtitle = currentTheme.displayName,
+                        onClick = onNavigateToThemes
+                    )
+                }
+            }
         }
 
         item { Spacer(modifier = Modifier.height(16.dp)) }
@@ -206,77 +203,51 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun ThemeOption(
-    mode: ThemeMode,
-    isSelected: Boolean,
+private fun SettingsRow(
+    icon: Int,
+    title: String,
+    subtitle: String,
     onClick: () -> Unit
 ) {
-    val label = mode.displayName
-    val (description, previewColor) = when (mode) {
-        ThemeMode.LIGHT -> "A fresh, open canvas" to Color(0xFFF5F5F5)
-        ThemeMode.DARK -> "Subdued tones for focused evenings" to Color(0xFF1C1B1F)
-        ThemeMode.AMOLED_BLACK -> "True black for OLED screens" to Color.Black
-        ThemeMode.WARM_TERRACOTTA -> "Warm, hand-thrown clay tones" to MutedClay
-        ThemeMode.CINNAMON_CREAM -> "Soft, time-worn paper tones" to CinnamonPrimary
-        ThemeMode.DUSTY_ROSE_COPPER -> "Muted rose warmed by copper accents" to RosePrimary
-        ThemeMode.OLIVE_BRASS -> "Earthy olive grounded by aged brass" to OlivePrimary
-    }
-
-    val containerColor = if (isSelected) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-    } else {
-        MaterialTheme.colorScheme.surface
-    }
-
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = if (isSelected) BorderStroke(2.dp, previewColor) else null,
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
             .clickable(onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_theme_book),
-                    contentDescription = null,
-                    tint = previewColor,
-                    modifier = Modifier.size(34.dp)
-                )
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column {
-                    Text(
-                        text = label,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 16.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = description,
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            if (isSelected) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = "Selected",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
+        Icon(
+            painter = painterResource(id = icon),
+            contentDescription = null,
+            tint = CyanPrimary,
+            modifier = Modifier.height(24.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
+
+@Preview(showBackground = true)
+@Composable
+fun SettingsScreenPreview() {
+    RemineraTheme(themeMode = ThemeMode.LIGHT) {
+        SettingsScreen(
+            currentTheme = ThemeMode.LIGHT,
+            onNavigateToThemes = {},
+            onBack = {}
+        )
+    }
+}
+

@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -15,7 +17,7 @@ import androidx.room.TypeConverters
         BiographySectionEntity::class,
         StoryEntryEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -32,6 +34,24 @@ abstract class RemineraDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: RemineraDatabase? = null
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE memory_entries ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    """
+                    UPDATE memory_entries
+                    SET sortOrder = (
+                        SELECT COUNT(*)
+                        FROM memory_entries AS m2
+                        WHERE m2.groupId = memory_entries.groupId
+                          AND m2.personTag = memory_entries.personTag
+                          AND m2.dateCaptured < memory_entries.dateCaptured
+                    )
+                    """
+                )
+            }
+        }
+
         fun getInstance(context: Context): RemineraDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -39,6 +59,7 @@ abstract class RemineraDatabase : RoomDatabase() {
                     RemineraDatabase::class.java,
                     "reminera.db"
                 )
+                    .addMigrations(MIGRATION_6_7)
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance

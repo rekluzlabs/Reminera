@@ -1,5 +1,6 @@
 package com.rekluzlabs.reminera.ui.biography
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -8,6 +9,10 @@ import com.rekluzlabs.reminera.data.BiographySectionEntity
 import com.rekluzlabs.reminera.data.FamilyMemberEntity
 import com.rekluzlabs.reminera.data.StoryEntryEntity
 import com.rekluzlabs.reminera.data.repository.BiographyRepository
+import com.rekluzlabs.reminera.ui.home.MediaAction
+import com.rekluzlabs.reminera.ui.home.MediaActionResult
+import com.rekluzlabs.reminera.util.DownloadHelper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +21,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 
 data class BiographyUiState(
@@ -48,6 +55,9 @@ class BiographyViewModel(
 
     private val _uiState = MutableStateFlow(BiographyUiState())
     val uiState: StateFlow<BiographyUiState> = _uiState.asStateFlow()
+
+    private val _mediaActionResult = MutableStateFlow<MediaActionResult?>(null)
+    val mediaActionResult: StateFlow<MediaActionResult?> = _mediaActionResult.asStateFlow()
 
     private val _biographyId = MutableStateFlow<String?>(null)
 
@@ -178,6 +188,64 @@ class BiographyViewModel(
     fun updateStoryEntryMedia(entryId: String, mediaUri: String?) {
         viewModelScope.launch {
             repository.updateStoryEntryMedia(entryId, mediaUri)
+        }
+    }
+
+    fun clearActionResult() {
+        _mediaActionResult.value = null
+    }
+
+    fun handleMediaAction(action: MediaAction, context: Context) {
+        viewModelScope.launch {
+            when (action) {
+                is MediaAction.Rename -> {
+                    val entry = repository.getStoryEntryById(action.entryId)
+                    if (entry != null) {
+                        repository.updateStoryEntryText(action.entryId, action.newTitle)
+                        _mediaActionResult.value = MediaActionResult.Success
+                    } else {
+                        _mediaActionResult.value = MediaActionResult.Error("Entry not found")
+                    }
+                }
+
+                is MediaAction.Download -> {
+                    val entry = repository.getStoryEntryById(action.entryId)
+                    if (entry != null) {
+                        val success = withContext(Dispatchers.IO) {
+                            DownloadHelper.downloadStoryEntryToDownloads(context, entry)
+                        }
+                        _mediaActionResult.value = if (success) {
+                            MediaActionResult.Success
+                        } else {
+                            MediaActionResult.Error("Failed to download")
+                        }
+                    } else {
+                        _mediaActionResult.value = MediaActionResult.Error("Entry not found")
+                    }
+                }
+
+                is MediaAction.Delete -> {
+                    val entry = repository.getStoryEntryById(action.entryId)
+                    if (entry != null) {
+                        repository.deleteStoryEntry(action.entryId)
+                        withContext(Dispatchers.IO) {
+                            try {
+                                entry.mediaUri?.let { uri ->
+                                    val file = File(uri)
+                                    if (file.exists()) file.delete()
+                                }
+                            } catch (_: Exception) {}
+                        }
+                        _mediaActionResult.value = MediaActionResult.Success
+                    } else {
+                        _mediaActionResult.value = MediaActionResult.Error("Entry not found")
+                    }
+                }
+
+                is MediaAction.Move -> {
+                    _mediaActionResult.value = MediaActionResult.Error("Move not supported for story entries")
+                }
+            }
         }
     }
 

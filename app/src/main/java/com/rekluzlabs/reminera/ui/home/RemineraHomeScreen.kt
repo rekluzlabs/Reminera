@@ -5,7 +5,6 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
-import android.media.MediaPlayer
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -42,11 +41,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayCircle
@@ -65,6 +66,9 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -73,11 +77,15 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -106,11 +114,15 @@ import com.rekluzlabs.reminera.data.defaultRolesForGroupType
 import com.rekluzlabs.reminera.ui.detail.MemoryDetailScreen
 import com.rekluzlabs.reminera.ui.detail.MemoryEditScreen
 import com.rekluzlabs.reminera.ui.settings.SettingsScreen
-import com.rekluzlabs.reminera.ui.settings.ThemeManager
-import com.rekluzlabs.reminera.ui.settings.ThemeMode
+import com.rekluzlabs.reminera.ui.settings.ThemeSettingsScreen
+import com.rekluzlabs.reminera.ui.settings.themes.ThemeManager
+import com.rekluzlabs.reminera.ui.settings.themes.ThemeMode
 import com.rekluzlabs.reminera.util.AudioRecorder
 import com.rekluzlabs.reminera.util.MediaSaver
+import com.rekluzlabs.reminera.util.PlaybackManager
 import com.rekluzlabs.reminera.util.copyUriToInternal
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -135,6 +147,7 @@ fun RemineraHomeScreen(
     var selectedEntry by rememberSaveable { mutableStateOf<MemoryEntryEntity?>(null) }
     var editingEntry by rememberSaveable { mutableStateOf<MemoryEntryEntity?>(null) }
     var showSettings by remember { mutableStateOf(false) }
+    var settingsSection by remember { mutableStateOf("main") }
     var themeMode by rememberSaveable { mutableStateOf(themeManager?.getThemeMode() ?: ThemeMode.LIGHT) }
     var editingName by remember { mutableStateOf(false) }
     var editingBio by remember { mutableStateOf(false) }
@@ -142,6 +155,11 @@ fun RemineraHomeScreen(
     var draftBio by remember { mutableStateOf("") }
     var showDeleteMemberDialog by remember { mutableStateOf(false) }
     var showFabOptions by remember { mutableStateOf(false) }
+
+    var isReorderMode by rememberSaveable { mutableStateOf(false) }
+    var mediaMenuState by remember { mutableStateOf<MediaMenuState?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
 
     val context = LocalContext.current
     val db = remember { RemineraDatabase.getInstance(context) }
@@ -165,6 +183,27 @@ fun RemineraHomeScreen(
     }
 
     val uiState by viewModel.uiState.collectAsState()
+    val actionResult by viewModel.mediaActionResult.collectAsState()
+
+    LaunchedEffect(actionResult) {
+        when (val result = actionResult) {
+            is MediaActionResult.Success -> {
+                snackbarHostState.showSnackbar(
+                    message = "Done",
+                    duration = SnackbarDuration.Short
+                )
+                viewModel.clearActionResult()
+            }
+            is MediaActionResult.Error -> {
+                snackbarHostState.showSnackbar(
+                    message = result.message,
+                    duration = SnackbarDuration.Short
+                )
+                viewModel.clearActionResult()
+            }
+            null -> {}
+        }
+    }
 
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -172,15 +211,29 @@ fun RemineraHomeScreen(
 
     when {
         showSettings -> {
-            BackHandler { showSettings = false }
-            SettingsScreen(
-                currentTheme = themeMode,
-                onThemeSelected = { mode ->
-                    themeMode = mode
-                    themeManager?.setThemeMode(mode)
-                },
-                onBack = { showSettings = false }
-            )
+            BackHandler {
+                if (settingsSection == "themes") {
+                    settingsSection = "main"
+                } else {
+                    showSettings = false
+                }
+            }
+            if (settingsSection == "themes") {
+                ThemeSettingsScreen(
+                    currentTheme = themeMode,
+                    onThemeSelected = { mode ->
+                        themeMode = mode
+                        themeManager?.setThemeMode(mode)
+                    },
+                    onBack = { settingsSection = "main" }
+                )
+            } else {
+                SettingsScreen(
+                    currentTheme = themeMode,
+                    onNavigateToThemes = { settingsSection = "themes" },
+                    onBack = { showSettings = false }
+                )
+            }
         }
         editingEntry != null -> {
             val entry = editingEntry!!
@@ -221,7 +274,13 @@ fun RemineraHomeScreen(
             )
         }
         else -> {
-            BackHandler { onBack() }
+            BackHandler {
+                if (isReorderMode) {
+                    isReorderMode = false
+                } else {
+                    onBack()
+                }
+            }
 
             Box(
                 modifier = Modifier
@@ -376,24 +435,40 @@ fun RemineraHomeScreen(
                         }
 
                         Row {
-                            if (member != null) {
-                                IconButton(onClick = { showDeleteMemberDialog = true }) {
+                            if (isReorderMode) {
+                                TextButton(
+                                    onClick = { isReorderMode = false },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(36.dp)
+                                ) {
                                     Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Delete member",
-                                        tint = MaterialTheme.colorScheme.error
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Done", fontSize = 14.sp)
+                                }
+                            } else {
+                                if (member != null) {
+                                    IconButton(onClick = { showDeleteMemberDialog = true }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete member",
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+                                IconButton(onClick = {
+                                    showSettings = true
+                                    onSettingsClick()
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = "Settings",
+                                        tint = MaterialTheme.colorScheme.primary
                                     )
                                 }
-                            }
-                            IconButton(onClick = {
-                                showSettings = true
-                                onSettingsClick()
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.Settings,
-                                    contentDescription = "Settings",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
                             }
                         }
                     }
@@ -507,24 +582,37 @@ fun RemineraHomeScreen(
                                 viewModel = viewModel,
                                 db = db,
                                 onDeleteEntry = { viewModel.deleteEntry(it) },
-                                onEntryClick = { entry -> selectedEntry = entry }
+                                onEntryClick = { entry -> selectedEntry = entry },
+                                isReorderMode = isReorderMode,
+                                onToggleReorderMode = { isReorderMode = it },
+                                onShowMediaMenu = { mediaMenuState = it },
+                                members = members,
+                                memberName = member?.name
                             )
                         }
                     }
                 }
 
-                FloatingActionButton(
-                    onClick = { showFabOptions = true },
-                    shape = RoundedCornerShape(16.dp),
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.background,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(20.dp)
-                        .navigationBarsPadding()
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add memory")
+                Box(modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp).navigationBarsPadding()) {
+                    if (!isReorderMode) {
+                        FloatingActionButton(
+                            onClick = { showFabOptions = true },
+                            shape = RoundedCornerShape(16.dp),
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.background
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Add memory")
+                        }
+                    }
                 }
+
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp)
+                )
             }
 
             if (showFabOptions) {
@@ -557,6 +645,17 @@ fun RemineraHomeScreen(
                                 Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(20.dp))
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(if (member?.biography?.isNotBlank() == true) "Edit biography" else "Create biography", modifier = Modifier.weight(1f))
+                            }
+                            TextButton(
+                                onClick = {
+                                    showFabOptions = false
+                                    isReorderMode = true
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.DragHandle, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text("Reorder memories", modifier = Modifier.weight(1f))
                             }
                             TextButton(
                                 onClick = {
@@ -664,6 +763,16 @@ fun RemineraHomeScreen(
                     )
                 }
             }
+
+            mediaMenuState?.let { menuState ->
+                MediaItemMenuSheet(
+                    menuState = menuState,
+                    onDismiss = { mediaMenuState = null },
+                    onAction = { action ->
+                        viewModel.handleMediaAction(action, context)
+                    }
+                )
+            }
         }
     }
 }
@@ -676,9 +785,27 @@ private fun MemoryLibraryContent(
     viewModel: RemineraViewModel,
     db: RemineraDatabase,
     onDeleteEntry: (String) -> Unit,
-    onEntryClick: (MemoryEntryEntity) -> Unit
+    onEntryClick: (MemoryEntryEntity) -> Unit,
+    isReorderMode: Boolean,
+    onToggleReorderMode: (Boolean) -> Unit,
+    onShowMediaMenu: (MediaMenuState) -> Unit,
+    members: List<FamilyMemberEntity>,
+    memberName: String?
 ) {
-    val grouped = entries.groupBy { entry ->
+    val sortedEntries = remember(entries) {
+        entries.sortedWith(compareBy<MemoryEntryEntity> { it.sortOrder }.thenByDescending { it.dateCaptured })
+    }
+
+    val mutableEntries = remember(sortedEntries) { mutableStateListOf<MemoryEntryEntity>().apply { addAll(sortedEntries) } }
+
+    LaunchedEffect(sortedEntries) {
+        if (mutableEntries.toList() != sortedEntries) {
+            mutableEntries.clear()
+            mutableEntries.addAll(sortedEntries)
+        }
+    }
+
+    val grouped = mutableEntries.groupBy { entry ->
         val cal = Calendar.getInstance().apply { timeInMillis = entry.dateCaptured }
         val month = cal.get(Calendar.MONTH)
         val year = cal.get(Calendar.YEAR)
@@ -690,9 +817,22 @@ private fun MemoryLibraryContent(
         year * 12L + month
     }
 
+    val lazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
+        mutableEntries.apply {
+            val fromIndex = from.index
+            val toIndex = to.index
+            if (fromIndex in indices && toIndex in indices) {
+                val item = removeAt(fromIndex)
+                add(toIndex, item)
+            }
+        }
+    }
+
     LazyColumn(
+        state = lazyListState,
         modifier = Modifier.fillMaxSize().navigationBarsPadding(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
     ) {
         sortedGroups.forEach { (key, groupEntries) ->
             val (month, year) = key
@@ -716,15 +856,36 @@ private fun MemoryLibraryContent(
             }
 
             items(groupEntries, key = { it.id }) { entry ->
-                MemoryEntryCard(
-                    entry = entry,
-                    groupId = groupId,
-                    allGroups = allGroups,
-                    viewModel = viewModel,
-                    db = db,
-                    onDelete = { onDeleteEntry(entry.id) },
-                    onClick = { onEntryClick(entry) }
-                )
+                ReorderableItem(reorderState, key = entry.id) { isDragging ->
+                    MemoryEntryCard(
+                        entry = entry,
+                        groupId = groupId,
+                        allGroups = allGroups,
+                        viewModel = viewModel,
+                        db = db,
+                        onDelete = { onDeleteEntry(entry.id) },
+                        onClick = {
+                            if (!isReorderMode) {
+                                onEntryClick(entry)
+                            }
+                        },
+                        isReorderMode = isReorderMode,
+                        isDragging = isDragging,
+                        dragHandleModifier = Modifier
+                            .longPressDraggableHandle(),
+                        onOverflowClick = {
+                            onShowMediaMenu(
+                                MediaMenuState(
+                                    entryId = entry.id,
+                                    entryTitle = entry.title,
+                                    entryType = entry.type,
+                                    currentMemberName = memberName,
+                                    members = members
+                                )
+                            )
+                        }
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }
@@ -740,10 +901,15 @@ private fun MemoryEntryCard(
     viewModel: RemineraViewModel,
     db: RemineraDatabase,
     onDelete: () -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    isReorderMode: Boolean = false,
+    isDragging: Boolean = false,
+    dragHandleModifier: Modifier = Modifier,
+    onOverflowClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var showMoveDialog by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
     val file = remember(entry.localFilePath) { File(entry.localFilePath) }
 
     val thumbBitmap = remember(entry.localFilePath, entry.type) {
@@ -768,19 +934,49 @@ private fun MemoryEntryCard(
 
     Card(
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isDragging)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+            else
+                MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isDragging) 8.dp else 0.dp
+        ),
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = { showMoveDialog = true }
+            .then(
+                if (isReorderMode) dragHandleModifier else Modifier
+            )
+            .then(
+                if (!isReorderMode) {
+                    Modifier.combinedClickable(
+                        onClick = onClick,
+                        onLongClick = {
+                            onOverflowClick()
+                        }
+                    )
+                } else {
+                    Modifier
+                }
             )
     ) {
         Column {
             Row(
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp),
+                modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (isReorderMode) {
+                    Icon(
+                        imageVector = Icons.Default.DragHandle,
+                        contentDescription = "Drag to reorder",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(20.dp)
+                    )
+                }
+
                 Box(
                     modifier = Modifier.size(48.dp),
                     contentAlignment = Alignment.Center
@@ -794,7 +990,7 @@ private fun MemoryEntryCard(
                                         contentDescription = "Thumbnail",
                                         modifier = Modifier
                                             .size(48.dp)
-                                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
+                                            .clip(RoundedCornerShape(8.dp)),
                                         contentScale = ContentScale.Crop
                                     )
                                 } else {
@@ -810,7 +1006,7 @@ private fun MemoryEntryCard(
                                         modifier = Modifier
                                             .align(Alignment.BottomEnd)
                                             .size(18.dp)
-                                            .clip(androidx.compose.foundation.shape.CircleShape)
+                                            .clip(CircleShape)
                                             .background(MaterialTheme.colorScheme.primary),
                                         contentAlignment = Alignment.Center
                                     ) {
@@ -832,7 +1028,7 @@ private fun MemoryEntryCard(
                                         contentDescription = "Video thumbnail",
                                         modifier = Modifier
                                             .size(48.dp)
-                                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
+                                            .clip(RoundedCornerShape(8.dp)),
                                         contentScale = ContentScale.Crop
                                     )
                                     Icon(
@@ -852,42 +1048,25 @@ private fun MemoryEntryCard(
                             }
                         }
                         "AUDIO" -> {
-                            var isAudioPlaying by remember(entry.id) { mutableStateOf(false) }
-                            var audioPlayer by remember(entry.id) { mutableStateOf<MediaPlayer?>(null) }
+                            val audioKey = remember(entry.id) { "home_audio_${entry.id}" }
+                            val playbackManager = remember(entry.id) {
+                                PlaybackManager.getInstance(context, audioKey)
+                            }
+                            val isAudioPlaying by playbackManager.isPlaying.collectAsState()
 
                             DisposableEffect(entry.id) {
                                 onDispose {
-                                    audioPlayer?.release()
-                                    audioPlayer = null
+                                    PlaybackManager.release(audioKey)
                                 }
                             }
 
                             IconButton(
                                 onClick = {
                                     if (file.exists()) {
-                                        if (isAudioPlaying) {
-                                            audioPlayer?.pause()
-                                            isAudioPlaying = false
+                                        if (!playbackManager.isPrepared.value) {
+                                            playbackManager.prepareAndPlay(Uri.fromFile(file))
                                         } else {
-                                            val player = audioPlayer ?: MediaPlayer().apply {
-                                                setDataSource(file.absolutePath)
-                                                setOnCompletionListener {
-                                                    isAudioPlaying = false
-                                                }
-                                                setOnPreparedListener {
-                                                    audioPlayer = this
-                                                    start()
-                                                    isAudioPlaying = true
-                                                }
-                                                prepareAsync()
-                                            }.also { audioPlayer = it }
-                                            if (player.isPlaying) {
-                                                player.pause()
-                                                isAudioPlaying = false
-                                            } else {
-                                                player.start()
-                                                isAudioPlaying = true
-                                            }
+                                            playbackManager.togglePlayPause()
                                         }
                                     }
                                 },
@@ -907,12 +1086,28 @@ private fun MemoryEntryCard(
                 Spacer(modifier = Modifier.width(12.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = entry.title,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = entry.title,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (!isReorderMode) {
+                            IconButton(
+                                onClick = { showRenameDialog = true },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Rename",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
 
                     val dateFormat = remember {
                         java.text.SimpleDateFormat("MMM dd, yyyy · hh:mm a", java.util.Locale.getDefault())
@@ -943,36 +1138,52 @@ private fun MemoryEntryCard(
                         )
                     }
                 }
+
+                if (!isReorderMode) {
+                    IconButton(
+                        onClick = onOverflowClick,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More options",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 4.dp, end = 4.dp, bottom = 4.dp),
-                horizontalArrangement = Arrangement.End
-            ) {
-                IconButton(onClick = {
-                    if (entry.localFilePath.isNotBlank()) {
-                        val saved = MediaSaver.saveToDevice(context, entry)
-                        val msg = if (saved) "Saved to device" else "Failed to save"
-                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
-                    } else {
-                        android.widget.Toast.makeText(context, "No file to save", android.widget.Toast.LENGTH_SHORT).show()
+            if (!isReorderMode) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 4.dp, end = 4.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    IconButton(onClick = {
+                        if (entry.localFilePath.isNotBlank()) {
+                            val saved = MediaSaver.saveToDevice(context, entry)
+                            val msg = if (saved) "Saved to device" else "Failed to save"
+                            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            android.widget.Toast.makeText(context, "No file to save", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.SaveAlt,
+                            contentDescription = "Save to device",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.SaveAlt,
-                        contentDescription = "Save to device",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
 
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete memory",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete memory",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -986,6 +1197,50 @@ private fun MemoryEntryCard(
             viewModel = viewModel,
             db = db,
             onDismiss = { showMoveDialog = false }
+        )
+    }
+
+    if (showRenameDialog) {
+        var renameTitle by remember { mutableStateOf(entry.title) }
+        val invalidChars = charArrayOf('/', '\\', ':', '*', '?', '"', '<', '>', '|')
+        val isValid = renameTitle.isNotBlank() && renameTitle.none { it in invalidChars }
+
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Rename") },
+            text = {
+                OutlinedTextField(
+                    value = renameTitle,
+                    onValueChange = { renameTitle = it },
+                    label = { Text("Title") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.handleMediaAction(MediaAction.Rename(entry.id, renameTitle.trim()), context)
+                        showRenameDialog = false
+                    },
+                    enabled = isValid
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 }

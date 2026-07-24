@@ -42,4 +42,10 @@ class BiographyRepository(
 
     suspend fun updateStoryEntryMedia(id: String, mediaUri: String?) =
         storyEntryDao.updateMediaUri(id, mediaUri)
+
+    suspend fun updateStoryEntryText(id: String, textContent: String?) =
+        storyEntryDao.updateTextContent(id, textContent)
+
+    suspend fun getStoryEntryById(id: String): StoryEntryEntity? =
+        storyEntryDao.getById(id)
 }
