@@ -1,0 +1,4 @@
+- [x] Add Room plugin to `libs.versions.toml`
+- [x] Add Room plugin to root `build.gradle.kts`
+- [x] Apply and configure Room plugin in `app/build.gradle.kts`
+- [x] Run Gradle sync and build to verify
