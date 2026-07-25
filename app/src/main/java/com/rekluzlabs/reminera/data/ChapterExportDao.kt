@@ -19,4 +19,10 @@ interface ChapterExportDao {
 
     @Query("UPDATE chapter_exports SET renderedPdfPath = :path, renderedPdfHash = :hash WHERE memberId = :memberId")
     suspend fun updateRenderedPdf(memberId: Long, path: String?, hash: String?)
+
+    @Query("UPDATE chapter_exports SET biographySource = :source, aiPolishedAt = :aiPolishedAt WHERE memberId = :memberId")
+    suspend fun updateBiographySource(memberId: Long, source: String, aiPolishedAt: Long?)
+
+    @Query("UPDATE chapter_exports SET generatedBioText = :text, biographySource = :source, sourceDataHash = :hash, aiPolishedAt = :aiPolishedAt, lastGenerated = :lastGenerated WHERE memberId = :memberId")
+    suspend fun updateAiPolished(memberId: Long, text: String, source: String, hash: String, aiPolishedAt: Long, lastGenerated: Long)
 }

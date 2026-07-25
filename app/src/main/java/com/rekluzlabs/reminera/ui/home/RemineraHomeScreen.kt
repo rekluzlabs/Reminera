@@ -115,6 +115,7 @@ import com.rekluzlabs.reminera.ui.detail.MemoryDetailScreen
 import com.rekluzlabs.reminera.ui.detail.MemoryEditScreen
 import com.rekluzlabs.reminera.ui.settings.SettingsScreen
 import com.rekluzlabs.reminera.ui.settings.ThemeSettingsScreen
+import com.rekluzlabs.reminera.ui.settings.AiSettingsScreen
 import com.rekluzlabs.reminera.ui.settings.themes.ThemeManager
 import com.rekluzlabs.reminera.ui.settings.themes.ThemeMode
 import com.rekluzlabs.reminera.util.AudioRecorder
@@ -212,7 +213,7 @@ fun RemineraHomeScreen(
     when {
         showSettings -> {
             BackHandler {
-                if (settingsSection == "themes") {
+                if (settingsSection == "themes" || settingsSection == "ai") {
                     settingsSection = "main"
                 } else {
                     showSettings = false
@@ -227,10 +228,15 @@ fun RemineraHomeScreen(
                     },
                     onBack = { settingsSection = "main" }
                 )
+            } else if (settingsSection == "ai") {
+                AiSettingsScreen(
+                    onBack = { settingsSection = "main" }
+                )
             } else {
                 SettingsScreen(
                     currentTheme = themeMode,
                     onNavigateToThemes = { settingsSection = "themes" },
+                    onNavigateToAi = { settingsSection = "ai" },
                     onBack = { showSettings = false }
                 )
             }

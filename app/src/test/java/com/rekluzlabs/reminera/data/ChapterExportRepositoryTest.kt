@@ -14,6 +14,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,13 +62,14 @@ class ChapterExportRepositoryTest {
         id: Long = 1L,
         groupId: Long = 10L,
         name: String = "Alice",
-        role: String = "Mother"
+        role: String = "Mother",
+        biography: String = ""
     ) = FamilyMemberEntity(
         id = id,
         groupId = groupId,
         name = name,
         role = role,
-        biography = "",
+        biography = biography,
         birthDate = null,
         sortOrder = 0,
         createdAt = System.currentTimeMillis()
@@ -91,7 +93,7 @@ class ChapterExportRepositoryTest {
     private fun section(
         id: String = "sec-1",
         biographyId: String = "bio-1",
-        sectionType: String = "early-life",
+        sectionType: String = "origins",
         fieldsJson: String = """{"text":"Grew up in Ohio"}"""
     ) = BiographySectionEntity(
         id = id,
@@ -174,15 +176,48 @@ class ChapterExportRepositoryTest {
     }
 
     @Test
-    fun chapterContainsPlaceholderText() = runTest {
+    fun chapterContainsRawAssembledText() = runTest {
         insertGroup()
-        db.familyMemberDao().insert(member())
+        val memberDao = db.familyMemberDao()
+        memberDao.insert(member(biography = "I grew up in a small town."))
 
         val chapter = repo.getOrGenerateChapter(1L)
 
-        assert(chapter.generatedBioText.contains("[Placeholder biography"))
-        assert(chapter.generatedBioText.contains("Alice"))
-        assert(chapter.generatedBioText.contains("Mother"))
+        assertEquals("RAW", chapter.biographySource)
+        assertTrue(chapter.generatedBioText.contains("I grew up in a small town."))
+    }
+
+    @Test
+    fun hashMatch_returnsCachedRegardlessOfSource() = runTest {
+        insertGroup()
+        val memberDao = db.familyMemberDao()
+        memberDao.insert(member(biography = "Hello"))
+
+        val chapter1 = repo.getOrGenerateChapter(1L)
+        assertEquals("RAW", chapter1.biographySource)
+
+        db.chapterExportDao().updateBiographySource(1L, "AI_POLISHED", System.currentTimeMillis())
+
+        val chapter2 = repo.getOrGenerateChapter(1L)
+        assertEquals("AI_POLISHED", chapter2.biographySource)
+        assertEquals(chapter1.sourceDataHash, chapter2.sourceDataHash)
+    }
+
+    @Test
+    fun hashMismatch_producesRawText() = runTest {
+        insertGroup()
+        val memberDao = db.familyMemberDao()
+        memberDao.insert(member(biography = "Version 1"))
+
+        val chapter1 = repo.getOrGenerateChapter(1L)
+        assertEquals("RAW", chapter1.biographySource)
+
+        memberDao.update(member(biography = "Version 2"))
+
+        val chapter2 = repo.getOrGenerateChapter(1L)
+        assertEquals("RAW", chapter2.biographySource)
+        assertTrue(chapter2.generatedBioText.contains("Version 2"))
+        assertNotEquals(chapter1.sourceDataHash, chapter2.sourceDataHash)
     }
 
     private fun memoryEntry(

@@ -17,8 +17,8 @@ android {
         applicationId = "com.rekluzlabs.reminera"
         minSdk = 28
         targetSdk = 36
-        versionCode = 26072402
-        versionName = "0.2.124_alpha"
+        versionCode = 26072403
+        versionName = "0.2.125_alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -73,6 +73,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.sh.calvin.reorderable)
     implementation(libs.pdfbox.android)
+    implementation(libs.androidx.security.crypto)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.androidx.room.testing)

@@ -7,7 +7,10 @@ import com.rekluzlabs.reminera.data.ChapterExportEntity
 import com.rekluzlabs.reminera.data.FamilyMemberDao
 import com.rekluzlabs.reminera.data.MemoryEntryDao
 import com.rekluzlabs.reminera.data.StoryEntryDao
+import com.rekluzlabs.reminera.export.BiographyGenerationInput
+import com.rekluzlabs.reminera.export.BiographyGenerationProvider
 import com.rekluzlabs.reminera.export.ChapterHasher
+import com.rekluzlabs.reminera.export.RawChapterTextAssembler
 import org.json.JSONArray
 
 class ChapterExportRepository(
@@ -46,28 +49,96 @@ class ChapterExportRepository(
         val mediaIds = media.map { it.id }
         val mediaManifest = JSONArray().apply { mediaIds.forEach { put(it) } }
 
-        // TODO(step-4): replace with BYOK-generated biography text
-        val placeholder = buildString {
-            append("[Placeholder biography for ${member.name}, ${member.role}. ")
-            if (member.birthDate != null) {
-                append("Born ${member.birthDate}. ")
-            }
-            append("${sections.size} biography section(s), ")
-            append("${stories.size} story entr${if (stories.size == 1) "y" else "ies"}, ")
-            append("${media.size} media item(s) on file. ")
-            append("Generated ${System.currentTimeMillis()}.]")
-        }
+        val rawText = RawChapterTextAssembler.assemble(member, sections, stories)
 
         val chapter = ChapterExportEntity(
             memberId = memberId,
             groupId = member.groupId,
             sourceDataHash = newHash,
-            generatedBioText = placeholder,
+            generatedBioText = rawText,
             mediaManifestJson = mediaManifest.toString(),
-            lastGenerated = System.currentTimeMillis()
+            lastGenerated = System.currentTimeMillis(),
+            biographySource = "RAW",
+            aiPolishedAt = null
         )
 
         chapterDao.upsert(chapter)
         return chapter
+    }
+
+    internal suspend fun buildBiographyInput(memberId: Long): BiographyGenerationInput {
+        val member = memberDao.getMemberById(memberId)
+            ?: throw IllegalArgumentException("Member $memberId not found")
+
+        val biography = biographyDao.getByPersonIdOnce(memberId)
+        val sections = if (biography != null) {
+            sectionDao.getByBiographyIdOnce(biography.id)
+        } else {
+            emptyList()
+        }
+        val stories = if (biography != null) {
+            storyDao.getByBiographyIdOnce(biography.id)
+        } else {
+            emptyList()
+        }
+
+        val sectionPairs = sections.map { section ->
+            val title = section.sectionType.replaceFirstChar { it.uppercase() }
+            val content = try {
+                val cleaned = section.fieldsJson.trim().removeSurrounding("{", "}")
+                if (cleaned.isBlank()) ""
+                else cleaned.split(",").mapNotNull { pair ->
+                    val parts = pair.split(":", limit = 2)
+                    if (parts.size == 2) parts[1].trim().removeSurrounding("\"") else null
+                }.joinToString(" ")
+            } catch (_: Exception) { "" }
+            title to content
+        }
+
+        val storyTexts = stories
+            .filter { it.type == "text" && !it.textContent.isNullOrBlank() }
+            .map { it.textContent!!.trim() }
+
+        return BiographyGenerationInput(
+            name = member.name,
+            relationship = member.role,
+            dateOfBirth = member.birthDate,
+            biographyText = member.biography,
+            sections = sectionPairs,
+            stories = storyTexts
+        )
+    }
+
+    suspend fun requestAiPolish(
+        memberId: Long,
+        provider: BiographyGenerationProvider
+    ): Result<Unit> {
+        val existing = chapterDao.getByMemberId(memberId)
+            ?: return Result.failure(IllegalStateException("No chapter for member $memberId"))
+
+        return try {
+            val input = buildBiographyInput(memberId)
+            val result = provider.generateBiography(input)
+            result.fold(
+                onSuccess = { polishedText ->
+                    val newHash = existing.sourceDataHash
+                    val now = System.currentTimeMillis()
+                    chapterDao.updateAiPolished(
+                        memberId = memberId,
+                        text = polishedText,
+                        source = "AI_POLISHED",
+                        hash = newHash,
+                        aiPolishedAt = now,
+                        lastGenerated = now
+                    )
+                    Result.success(Unit)
+                },
+                onFailure = { error ->
+                    Result.failure(error)
+                }
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }

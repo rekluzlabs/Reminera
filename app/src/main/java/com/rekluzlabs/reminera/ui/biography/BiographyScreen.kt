@@ -57,7 +57,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -100,14 +102,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rekluzlabs.reminera.data.StoryEntryEntity
+import com.rekluzlabs.reminera.export.GeminiBiographyProvider
 import com.rekluzlabs.reminera.ui.editor.ImageEditorScreen
 import com.rekluzlabs.reminera.ui.home.MediaAction
+import com.rekluzlabs.reminera.ui.home.MediaActionResult
 import com.rekluzlabs.reminera.ui.home.MediaItemMenuSheet
 import com.rekluzlabs.reminera.ui.home.MediaMenuState
 import com.rekluzlabs.reminera.ui.home.RemineraViewModel
 import com.rekluzlabs.reminera.util.AudioRecorder
 import com.rekluzlabs.reminera.util.MediaSaver
 import com.rekluzlabs.reminera.util.PlaybackManager
+import com.rekluzlabs.reminera.util.SecureApiKeyStore
 import com.rekluzlabs.reminera.util.copyUriToInternal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -143,6 +148,11 @@ fun BiographyScreen(
     var showImageEditor by remember { mutableStateOf<Uri?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    val chapterExport by viewModel.chapterExport.collectAsState()
+    val isAiPolishing by viewModel.isAiPolishing.collectAsState()
+    val aiPolishResult by viewModel.aiPolishResult.collectAsState()
+    var showAiConsentDialog by remember { mutableStateOf(false) }
 
     val mediaEntries = uiState.storyEntries.filter { it.type == "audio" || it.type == "video" || it.type == "photo" }
 
@@ -324,6 +334,20 @@ fun BiographyScreen(
     var renameCurrentTitle by remember { mutableStateOf("") }
     var mediaMenuState by remember { mutableStateOf<MediaMenuState?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(aiPolishResult) {
+        when (val result = aiPolishResult) {
+            is MediaActionResult.Success -> {
+                snackbarHostState.showSnackbar("AI biography generated successfully.")
+                viewModel.clearAiPolishResult()
+            }
+            is MediaActionResult.Error -> {
+                snackbarHostState.showSnackbar(result.message)
+                viewModel.clearAiPolishResult()
+            }
+            null -> {}
+        }
+    }
 
     val bioPhoto = remember(biography?.photoUri) {
         biography?.photoUri?.let { uriStr ->
@@ -705,6 +729,91 @@ fun BiographyScreen(
                         }
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // AI biography source indicator
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Chapter Text",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        val source = chapterExport?.biographySource
+                        Text(
+                            text = when (source) {
+                                "AI_POLISHED" -> "AI-polished"
+                                else -> "Raw (your own words)"
+                            },
+                            fontSize = 13.sp,
+                            color = if (source == "AI_POLISHED")
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (isAiPolishing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        val keyStore = remember { SecureApiKeyStore(context) }
+                        FilledTonalButton(
+                            onClick = {
+                                if (!keyStore.hasApiKey()) {
+                                    onSettingsClick()
+                                } else if (!hasConsent(context)) {
+                                    showAiConsentDialog = true
+                                } else {
+                                    viewModel.requestAiPolish(
+                                        GeminiBiographyProvider(keyStore.getApiKey()!!, keyStore.getSelectedModel())
+                                    )
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = if (chapterExport?.biographySource == "AI_POLISHED")
+                                    "Regenerate"
+                                else
+                                    "Generate AI",
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (showAiConsentDialog) {
+                AiConsentDialog(
+                    onAccept = {
+                        showAiConsentDialog = false
+                        val keyStore = SecureApiKeyStore(context)
+                        viewModel.requestAiPolish(
+                            GeminiBiographyProvider(keyStore.getApiKey()!!, keyStore.getSelectedModel())
+                        )
+                    },
+                    onDismiss = { showAiConsentDialog = false }
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))

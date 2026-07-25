@@ -6,9 +6,12 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.rekluzlabs.reminera.data.BiographyEntity
 import com.rekluzlabs.reminera.data.BiographySectionEntity
+import com.rekluzlabs.reminera.data.ChapterExportEntity
 import com.rekluzlabs.reminera.data.FamilyMemberEntity
 import com.rekluzlabs.reminera.data.StoryEntryEntity
 import com.rekluzlabs.reminera.data.repository.BiographyRepository
+import com.rekluzlabs.reminera.data.repository.ChapterExportRepository
+import com.rekluzlabs.reminera.export.BiographyGenerationProvider
 import com.rekluzlabs.reminera.ui.home.MediaAction
 import com.rekluzlabs.reminera.ui.home.MediaActionResult
 import com.rekluzlabs.reminera.util.DownloadHelper
@@ -60,6 +63,60 @@ class BiographyViewModel(
     val mediaActionResult: StateFlow<MediaActionResult?> = _mediaActionResult.asStateFlow()
 
     private val _biographyId = MutableStateFlow<String?>(null)
+
+    private val _chapterExport = MutableStateFlow<ChapterExportEntity?>(null)
+    val chapterExport: StateFlow<ChapterExportEntity?> = _chapterExport.asStateFlow()
+
+    private val _isAiPolishing = MutableStateFlow(false)
+    val isAiPolishing: StateFlow<Boolean> = _isAiPolishing.asStateFlow()
+
+    private val _aiPolishResult = MutableStateFlow<MediaActionResult?>(null)
+    val aiPolishResult: StateFlow<MediaActionResult?> = _aiPolishResult.asStateFlow()
+
+    private var chapterExportRepository: ChapterExportRepository? = null
+
+    fun setChapterExportRepository(repository: ChapterExportRepository) {
+        chapterExportRepository = repository
+        viewModelScope.launch {
+            try {
+                val chapter = repository.getOrGenerateChapter(personId)
+                _chapterExport.value = chapter
+            } catch (_: Exception) { }
+        }
+    }
+
+    fun requestAiPolish(provider: BiographyGenerationProvider) {
+        val repo = chapterExportRepository ?: return
+        viewModelScope.launch {
+            _isAiPolishing.value = true
+            _aiPolishResult.value = null
+            try {
+                val result = repo.requestAiPolish(personId, provider)
+                result.fold(
+                    onSuccess = {
+                        val refreshed = repo.getOrGenerateChapter(personId)
+                        _chapterExport.value = refreshed
+                        _aiPolishResult.value = MediaActionResult.Success
+                    },
+                    onFailure = { error ->
+                        _aiPolishResult.value = MediaActionResult.Error(
+                            error.message ?: "AI polish failed"
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                _aiPolishResult.value = MediaActionResult.Error(
+                    e.message ?: "AI polish failed"
+                )
+            } finally {
+                _isAiPolishing.value = false
+            }
+        }
+    }
+
+    fun clearAiPolishResult() {
+        _aiPolishResult.value = null
+    }
 
     init {
         viewModelScope.launch {
@@ -277,12 +334,15 @@ class BiographyViewModel(
 class BiographyViewModelFactory(
     private val personId: Long,
     private val member: FamilyMemberEntity?,
-    private val repository: BiographyRepository
+    private val repository: BiographyRepository,
+    private val chapterExportRepository: ChapterExportRepository? = null
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(BiographyViewModel::class.java)) {
-            return BiographyViewModel(personId, member, repository) as T
+            val vm = BiographyViewModel(personId, member, repository)
+            chapterExportRepository?.let { vm.setChapterExportRepository(it) }
+            return vm as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

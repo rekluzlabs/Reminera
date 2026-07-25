@@ -19,7 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ChapterExportEntity::class,
         BookExportManifestEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -93,6 +93,13 @@ abstract class RemineraDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chapter_exports ADD COLUMN biographySource TEXT NOT NULL DEFAULT 'RAW'")
+                db.execSQL("ALTER TABLE chapter_exports ADD COLUMN aiPolishedAt INTEGER DEFAULT NULL")
+            }
+        }
+
         fun getInstance(context: Context): RemineraDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -100,7 +107,7 @@ abstract class RemineraDatabase : RoomDatabase() {
                     RemineraDatabase::class.java,
                     "reminera.db"
                 )
-                    .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                    .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance

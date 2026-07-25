@@ -37,6 +37,7 @@ import com.rekluzlabs.reminera.ui.home.RemineraViewModel
 import com.rekluzlabs.reminera.ui.home.RemineraViewModelFactory
 import com.rekluzlabs.reminera.ui.recording.AudioRecordScreen
 import com.rekluzlabs.reminera.ui.recording.VideoRecordScreen
+import com.rekluzlabs.reminera.ui.settings.AiSettingsScreen
 import com.rekluzlabs.reminera.ui.settings.SettingsScreen
 import com.rekluzlabs.reminera.ui.settings.ThemeSettingsScreen
 import com.rekluzlabs.reminera.ui.settings.themes.ThemeManager
@@ -76,7 +77,7 @@ class MainActivity : ComponentActivity() {
                     }
                     showSettings -> {
                         BackHandler {
-                            if (settingsSection == "themes") {
+                            if (settingsSection == "themes" || settingsSection == "ai") {
                                 settingsSection = "main"
                             } else {
                                 showSettings = false
@@ -92,10 +93,15 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onBack = { settingsSection = "main" }
                             )
+                        } else if (settingsSection == "ai") {
+                            AiSettingsScreen(
+                                onBack = { settingsSection = "main" }
+                            )
                         } else {
                             SettingsScreen(
                                 currentTheme = themeMode,
                                 onNavigateToThemes = { settingsSection = "themes" },
+                                onNavigateToAi = { settingsSection = "ai" },
                                 onBack = { showSettings = false }
                             )
                         }

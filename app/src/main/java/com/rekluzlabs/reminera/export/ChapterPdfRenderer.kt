@@ -49,6 +49,12 @@ object ChapterPdfRenderer {
                 webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
             }
 
+            suspendCancellableCoroutine { cont ->
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    if (cont.isActive) cont.resume(Unit)
+                }
+            }
+
             val contentWidth = A4_WIDTH_PX - (MARGIN_PX * 2)
 
             webView.measure(

@@ -52,6 +52,7 @@ private val CyanPrimary = Color(0xFF00BCD4)
 fun SettingsScreen(
     currentTheme: ThemeMode,
     onNavigateToThemes: () -> Unit,
+    onNavigateToAi: () -> Unit = {},
     onBack: () -> Unit
 ) {
     LazyColumn(
@@ -101,6 +102,12 @@ fun SettingsScreen(
                         title = "Themes",
                         subtitle = currentTheme.displayName,
                         onClick = onNavigateToThemes
+                    )
+                    SettingsRow(
+                        icon = R.drawable.ic_theme_book,
+                        title = "AI Biography (Gemini)",
+                        subtitle = "Optional AI polish for chapters",
+                        onClick = onNavigateToAi
                     )
                 }
             }

@@ -13,5 +13,7 @@ data class ChapterExportEntity(
     val mediaManifestJson: String,
     val lastGenerated: Long,
     val renderedPdfPath: String? = null,
-    val renderedPdfHash: String? = null
+    val renderedPdfHash: String? = null,
+    val biographySource: String = "RAW",
+    val aiPolishedAt: Long? = null
 )
