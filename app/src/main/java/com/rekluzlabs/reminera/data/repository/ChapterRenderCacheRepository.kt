@@ -2,24 +2,33 @@ package com.rekluzlabs.reminera.data.repository
 
 import android.content.Context
 import com.rekluzlabs.reminera.data.ChapterExportDao
-import com.rekluzlabs.reminera.data.ChapterExportEntity
 import com.rekluzlabs.reminera.data.FamilyMemberDao
+import com.rekluzlabs.reminera.data.MemoryEntryDao
 import com.rekluzlabs.reminera.export.ChapterHtmlTemplateBuilder
 import com.rekluzlabs.reminera.export.ChapterPdfRenderer
 import com.rekluzlabs.reminera.export.ChapterPdfRenderer.RenderResult
-import com.rekluzlabs.reminera.data.BiographyDao
-import com.rekluzlabs.reminera.data.BiographySectionDao
-import com.rekluzlabs.reminera.data.MemoryEntryDao
-import com.rekluzlabs.reminera.data.StoryEntryDao
-import org.json.JSONArray
 import java.io.File
+
+fun interface ChapterRenderer {
+    suspend fun render(
+        context: Context,
+        memberId: Long,
+        html: String,
+        chapterTitle: String
+    ): RenderResult
+}
+
+val DefaultChapterRenderer = ChapterRenderer { context, memberId, html, chapterTitle ->
+    ChapterPdfRenderer.renderChapter(context, memberId, html, chapterTitle)
+}
 
 class ChapterRenderCacheRepository(
     private val context: Context,
     private val chapterDao: ChapterExportDao,
     private val chapterExportRepository: ChapterExportRepository,
     private val memberDao: FamilyMemberDao,
-    private val memoryDao: MemoryEntryDao
+    private val memoryDao: MemoryEntryDao,
+    private val renderer: ChapterRenderer = DefaultChapterRenderer
 ) {
 
     private val exportDir: File
@@ -52,7 +61,7 @@ class ChapterRenderCacheRepository(
 
         val outputFile = File(exportDir, "chapter_${memberId}.pdf")
 
-        val result = ChapterPdfRenderer.renderChapter(
+        val result = renderer.render(
             context = context,
             memberId = memberId,
             html = html,
