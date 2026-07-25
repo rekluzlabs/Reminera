@@ -12,6 +12,9 @@ interface StoryEntryDao {
     @Query("SELECT * FROM story_entries WHERE biographyId = :biographyId ORDER BY recordedAt DESC")
     fun getByBiographyId(biographyId: String): Flow<List<StoryEntryEntity>>
 
+    @Query("SELECT * FROM story_entries WHERE biographyId = :biographyId ORDER BY recordedAt DESC")
+    suspend fun getByBiographyIdOnce(biographyId: String): List<StoryEntryEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entry: StoryEntryEntity)
 

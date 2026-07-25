@@ -1,5 +1,6 @@
 package com.rekluzlabs.reminera.ui.home
 
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.Image
@@ -28,11 +29,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -57,9 +60,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
+import com.rekluzlabs.reminera.BuildConfig
+import com.rekluzlabs.reminera.data.BiographyDao
+import com.rekluzlabs.reminera.data.BiographySectionDao
+import com.rekluzlabs.reminera.data.ChapterExportDao
 import com.rekluzlabs.reminera.data.FamilyGroupEntity
+import com.rekluzlabs.reminera.data.FamilyMemberDao
 import com.rekluzlabs.reminera.data.FamilyMemberEntity
+import com.rekluzlabs.reminera.data.MemoryEntryDao
 import com.rekluzlabs.reminera.data.RemineraDatabase
+import com.rekluzlabs.reminera.data.StoryEntryDao
+import com.rekluzlabs.reminera.data.repository.ChapterExportRepository
+import com.rekluzlabs.reminera.export.ChapterHtmlTemplateBuilder
+import com.rekluzlabs.reminera.export.ChapterPdfRenderer
 import com.rekluzlabs.reminera.util.copyUriToInternal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -255,6 +269,8 @@ private fun MemberItemCard(
     onDeleteMember: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isGeneratingPdf by remember { mutableStateOf(false) }
     val memberPhoto = remember(member.photoUri) {
         member.photoUri?.let { uriStr ->
             try {
@@ -324,6 +340,78 @@ private fun MemberItemCard(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 2.dp)
                     )
+                }
+            }
+            // DEBUG-ONLY: remove or gate behind a proper settings flag once export UI exists
+            if (BuildConfig.DEBUG) {
+                IconButton(
+                    onClick = {
+                        if (!isGeneratingPdf) {
+                            isGeneratingPdf = true
+                            scope.launch {
+                                try {
+                                    val db = RemineraDatabase.getInstance(context)
+                                    val chapterRepo = ChapterExportRepository(
+                                        chapterDao = db.chapterExportDao(),
+                                        memberDao = db.familyMemberDao(),
+                                        biographyDao = db.biographyDao(),
+                                        sectionDao = db.biographySectionDao(),
+                                        storyDao = db.storyEntryDao(),
+                                        memoryDao = db.memoryEntryDao()
+                                    )
+                                    val chapter = withContext(Dispatchers.IO) {
+                                        chapterRepo.getOrGenerateChapter(member.id)
+                                    }
+                                    val mediaEntries = withContext(Dispatchers.IO) {
+                                        db.memoryEntryDao()
+                                            .getEntriesByGroupIdAndPersonTagList(
+                                                member.groupId, member.name
+                                            )
+                                    }
+                                    val html = ChapterHtmlTemplateBuilder.buildHtml(
+                                        ChapterHtmlTemplateBuilder.ChapterInput(
+                                            chapter = chapter,
+                                            member = member,
+                                            mediaEntries = mediaEntries
+                                        )
+                                    )
+                                    val result = ChapterPdfRenderer.renderChapter(
+                                        context = context,
+                                        memberId = member.id,
+                                        html = html,
+                                        chapterTitle = "Chapter: ${member.name}"
+                                    )
+                                    if (result is ChapterPdfRenderer.RenderResult.Success) {
+                                        val uri = FileProvider.getUriForFile(
+                                            context,
+                                            "com.rekluzlabs.reminera.fileprovider",
+                                            result.outputFile
+                                        )
+                                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                                            setDataAndType(uri, "application/pdf")
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(intent)
+                                    }
+                                } catch (_: Exception) { }
+                                isGeneratingPdf = false
+                            }
+                        }
+                    },
+                    enabled = !isGeneratingPdf
+                ) {
+                    if (isGeneratingPdf) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.PictureAsPdf,
+                            contentDescription = "Preview chapter PDF (debug)",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
             IconButton(onClick = onDeleteMember) {

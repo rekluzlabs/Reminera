@@ -13,6 +13,9 @@ interface BiographySectionDao {
     @Query("SELECT * FROM biography_sections WHERE biographyId = :biographyId ORDER BY sectionType ASC")
     fun getByBiographyId(biographyId: String): Flow<List<BiographySectionEntity>>
 
+    @Query("SELECT * FROM biography_sections WHERE biographyId = :biographyId ORDER BY sectionType ASC")
+    suspend fun getByBiographyIdOnce(biographyId: String): List<BiographySectionEntity>
+
     @Query("SELECT * FROM biography_sections WHERE biographyId = :biographyId AND sectionType = :sectionType LIMIT 1")
     suspend fun getByBiographyIdAndType(biographyId: String, sectionType: String): BiographySectionEntity?
 

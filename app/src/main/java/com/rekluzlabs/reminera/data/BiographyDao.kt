@@ -13,6 +13,9 @@ interface BiographyDao {
     @Query("SELECT * FROM biographies WHERE personId = :personId LIMIT 1")
     fun getByPersonId(personId: Long): Flow<BiographyEntity?>
 
+    @Query("SELECT * FROM biographies WHERE personId = :personId LIMIT 1")
+    suspend fun getByPersonIdOnce(personId: Long): BiographyEntity?
+
     @Query("SELECT * FROM biographies WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): BiographyEntity?
 

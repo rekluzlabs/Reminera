@@ -1,3 +1,0 @@
-- [x] Modify `SettingsScreen.kt` to remove inline themes and add a link to the Themes section.
-- [x] Update `MainActivity.kt` to handle settings sub-navigation.
-- [x] Verify navigation and theme selection.

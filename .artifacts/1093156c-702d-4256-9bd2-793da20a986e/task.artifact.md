@@ -1,4 +1,0 @@
-- `[x]` Update `MemoryEntryEntity` with secondary media fields
-- `[x]` Increment `RemineraDatabase` version
-- `[x]` Update `RemineraViewModel` to support secondary media in `addImportedPhoto`
-- `[x]` Update `FullScreenMediaViewer` to support secondary media playback
