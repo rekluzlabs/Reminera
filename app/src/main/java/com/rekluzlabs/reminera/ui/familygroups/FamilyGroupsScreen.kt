@@ -22,22 +22,26 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Face
-import androidx.compose.material.icons.filled.FamilyRestroom
-import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Celebration
+import androidx.compose.material.icons.filled.Chair
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChildCare
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Diversity3
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Elderly
+import androidx.compose.material.icons.filled.ElderlyWoman
+import androidx.compose.material.icons.filled.FamilyRestroom
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowLeft
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -534,12 +538,12 @@ private fun FamilyGroupTile(
 
 private fun iconForGroupType(groupType: String): ImageVector {
     return when (groupType) {
-        "GREAT_GRANDPARENT" -> Icons.Default.Star
-        "GRANDPARENTS" -> Icons.Default.FamilyRestroom
-        "PARENTS" -> Icons.Default.Face
-        "SIBLINGS" -> Icons.Default.Groups
-        "CHILDREN" -> Icons.Default.Person
-        "FRIENDS" -> Icons.Default.Face
+        "GREAT_GRANDPARENT" -> Icons.Default.Chair
+        "GRANDPARENTS" -> Icons.Default.ElderlyWoman
+        "PARENTS" -> Icons.Default.FamilyRestroom
+        "SIBLINGS" -> Icons.Default.Diversity3
+        "CHILDREN" -> Icons.Default.ChildCare
+        "FRIENDS" -> Icons.Default.Celebration
         else -> Icons.Default.Groups
     }
 }

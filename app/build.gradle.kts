@@ -17,8 +17,8 @@ android {
         applicationId = "com.rekluzlabs.reminera"
         minSdk = 28
         targetSdk = 36
-        versionCode = 26072403
-        versionName = "0.2.125_alpha"
+        versionCode = 26072801
+        versionName = "0.2.35_alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

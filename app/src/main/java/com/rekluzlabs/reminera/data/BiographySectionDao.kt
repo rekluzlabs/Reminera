@@ -24,4 +24,10 @@ interface BiographySectionDao {
 
     @Update
     suspend fun update(section: BiographySectionEntity)
+
+    @Query("SELECT * FROM biography_sections ORDER BY biographyId ASC")
+    suspend fun getAllSectionsList(): List<BiographySectionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDirect(section: BiographySectionEntity)
 }

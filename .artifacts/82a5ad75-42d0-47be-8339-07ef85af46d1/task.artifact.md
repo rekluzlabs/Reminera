@@ -1,0 +1,15 @@
+- [x] Integration: `FamilyMemberSheets.kt`
+    - [x] Add `editingPhotoUri` state to `AddFamilyMemberSheet` and `EditFamilyMemberSheet`
+    - [x] Open `ImageEditorScreen` when a photo is picked
+    - [x] Update preview with cropped result
+- [x] Integration: `RemineraHomeScreen.kt`
+    - [x] Add `editingPhotoUri` state
+    - [x] Open `ImageEditorScreen` when a new photo is selected
+    - [x] Save cropped result to internal storage and update ViewModel
+- [x] Integration: `FullScreenPhotoViewer.kt`
+    - [x] Add Edit button to the viewer
+    - [x] Implement editing logic (callback to parent screen)
+- [x] Verification
+    - [x] Test cropping in Add Member sheet
+    - [x] Test cropping in Edit Member sheet
+    - [x] Test cropping from Profile screen (avatar click/long-press/FAB)

@@ -27,4 +27,10 @@ interface BiographyDao {
 
     @Query("DELETE FROM biographies WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query("SELECT * FROM biographies ORDER BY createdAt DESC")
+    suspend fun getAllBiographiesList(): List<BiographyEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDirect(biography: BiographyEntity)
 }

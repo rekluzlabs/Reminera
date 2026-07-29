@@ -29,4 +29,10 @@ interface StoryEntryDao {
 
     @Query("SELECT * FROM story_entries WHERE id = :id")
     suspend fun getById(id: String): StoryEntryEntity?
+
+    @Query("SELECT * FROM story_entries ORDER BY recordedAt DESC")
+    suspend fun getAllStoriesList(): List<StoryEntryEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDirect(entry: StoryEntryEntity)
 }

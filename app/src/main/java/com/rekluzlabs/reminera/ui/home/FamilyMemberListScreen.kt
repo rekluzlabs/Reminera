@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Person
@@ -74,6 +75,7 @@ import com.rekluzlabs.reminera.data.StoryEntryDao
 import com.rekluzlabs.reminera.data.repository.ChapterExportRepository
 import com.rekluzlabs.reminera.export.ChapterHtmlTemplateBuilder
 import com.rekluzlabs.reminera.export.ChapterPdfRenderer
+import com.rekluzlabs.reminera.ui.editor.ImageEditorScreen
 import com.rekluzlabs.reminera.util.copyUriToInternal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -99,7 +101,11 @@ fun FamilyMemberListScreen(
     val members = membersState.value
 
     var showAddMemberSheet by remember { mutableStateOf(false) }
+    var showEditMemberSheet by remember { mutableStateOf<FamilyMemberEntity?>(null) }
     var showDeleteMemberDialog by remember { mutableStateOf<FamilyMemberEntity?>(null) }
+    var fullScreenPhotoUri by remember { mutableStateOf<String?>(null) }
+    var editingPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var memberBeingEdited by remember { mutableStateOf<FamilyMemberEntity?>(null) }
     val scope = rememberCoroutineScope()
 
     Box(
@@ -194,6 +200,8 @@ fun FamilyMemberListScreen(
                         MemberItemCard(
                             member = member,
                             onClick = { onMemberClick(member) },
+                            onPhotoClick = { member.photoUri?.let { fullScreenPhotoUri = it } },
+                            onEditMember = { showEditMemberSheet = member },
                             onDeleteMember = { showDeleteMemberDialog = member }
                         )
                     }
@@ -236,6 +244,64 @@ fun FamilyMemberListScreen(
         )
     }
 
+    if (fullScreenPhotoUri != null) {
+        androidx.activity.compose.BackHandler { fullScreenPhotoUri = null }
+        FullScreenPhotoViewer(
+            photoUri = fullScreenPhotoUri!!,
+            onBack = { fullScreenPhotoUri = null },
+            onEdit = {
+                // Find the member for this photo
+                memberBeingEdited = members.find { it.photoUri == fullScreenPhotoUri }
+                editingPhotoUri = Uri.parse(fullScreenPhotoUri!!)
+                fullScreenPhotoUri = null
+            }
+        )
+    }
+
+    if (editingPhotoUri != null && memberBeingEdited != null) {
+        ImageEditorScreen(
+            imageUri = editingPhotoUri!!,
+            onSave = { editedUri ->
+                scope.launch {
+                    val persistentUri = withContext(Dispatchers.IO) {
+                        try {
+                            copyUriToInternal(context, editedUri, "jpg")
+                        } catch (_: Exception) { editedUri.toString() }
+                    }
+                    viewModel.updateMemberPhoto(memberBeingEdited!!.id, persistentUri)
+                }
+                editingPhotoUri = null
+                memberBeingEdited = null
+            },
+            onDismiss = {
+                editingPhotoUri = null
+                memberBeingEdited = null
+            }
+        )
+    }
+
+    showEditMemberSheet?.let { member ->
+        EditFamilyMemberSheet(
+            member = member,
+            groupName = currentGroup?.name ?: "",
+            groupType = currentGroup?.groupType ?: "",
+            onSave = { name, role, birthDate, photoUri ->
+                scope.launch {
+                    val persistentUri = if (photoUri != null) {
+                        withContext(Dispatchers.IO) {
+                            try {
+                                copyUriToInternal(context, Uri.parse(photoUri), "jpg")
+                            } catch (_: Exception) { photoUri }
+                        }
+                    } else null
+                    viewModel.updateMemberDetails(member.id, name, role, birthDate, persistentUri)
+                }
+                showEditMemberSheet = null
+            },
+            onDismiss = { showEditMemberSheet = null }
+        )
+    }
+
     showDeleteMemberDialog?.let { member ->
         AlertDialog(
             onDismissRequest = { showDeleteMemberDialog = null },
@@ -266,6 +332,8 @@ fun FamilyMemberListScreen(
 private fun MemberItemCard(
     member: FamilyMemberEntity,
     onClick: () -> Unit,
+    onPhotoClick: () -> Unit,
+    onEditMember: () -> Unit,
     onDeleteMember: () -> Unit
 ) {
     val context = LocalContext.current
@@ -310,7 +378,8 @@ private fun MemberItemCard(
                     contentDescription = null,
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(CircleShape),
+                        .clip(CircleShape)
+                        .clickable(enabled = true, onClick = onPhotoClick),
                     contentScale = ContentScale.Crop
                 )
             } else {
@@ -318,7 +387,9 @@ private fun MemberItemCard(
                     imageVector = Icons.Default.Person,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clickable(enabled = true, onClick = onPhotoClick)
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -341,6 +412,13 @@ private fun MemberItemCard(
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }
+            }
+            IconButton(onClick = onEditMember) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit member",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             // DEBUG-ONLY: remove or gate behind a proper settings flag once export UI exists
             if (BuildConfig.DEBUG) {

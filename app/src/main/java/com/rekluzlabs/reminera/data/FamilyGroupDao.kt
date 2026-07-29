@@ -50,4 +50,10 @@ interface FamilyGroupDao {
 
     @Query("DELETE FROM family_groups WHERE id IN (:ids)")
     suspend fun deleteGroups(ids: List<Long>)
+
+    @Query("SELECT * FROM family_groups ORDER BY sortOrder ASC")
+    suspend fun getAllOrderedBySortOrderList(): List<FamilyGroupEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDirect(group: FamilyGroupEntity)
 }

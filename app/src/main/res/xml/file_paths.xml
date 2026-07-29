@@ -6,4 +6,7 @@
     <files-path name="my_images" path="images/" />
     <files-path name="my_videos" path="videos/" />
     <files-path name="my_audio" path="audio/" />
+    <files-path name="media" path="media/" />
+    <files-path name="recordings" path="recordings/" />
+    <files-path name="exports" path="exports/" />
 </paths>

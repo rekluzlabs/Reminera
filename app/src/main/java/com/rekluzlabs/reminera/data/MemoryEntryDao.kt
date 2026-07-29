@@ -57,4 +57,10 @@ interface MemoryEntryDao {
 
     @Query("SELECT * FROM memory_entries WHERE groupId = :groupId AND personTag = :personTag ORDER BY sortOrder ASC, dateCaptured DESC")
     suspend fun getEntriesByGroupIdAndPersonTagList(groupId: Long, personTag: String): List<MemoryEntryEntity>
+
+    @Query("SELECT * FROM memory_entries ORDER BY dateCaptured DESC")
+    suspend fun getAllEntriesList(): List<MemoryEntryEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDirect(entry: MemoryEntryEntity)
 }

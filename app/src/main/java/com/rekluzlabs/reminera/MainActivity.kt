@@ -23,6 +23,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.rekluzlabs.reminera.data.RemineraDatabase
 import com.rekluzlabs.reminera.data.repository.BiographyRepository
+import com.rekluzlabs.reminera.data.repository.ChapterExportRepository
 import com.rekluzlabs.reminera.data.repository.FamilyMemberRepository
 import com.rekluzlabs.reminera.data.repository.MemoryEntryRepository
 import com.rekluzlabs.reminera.ui.biography.BiographyScreen
@@ -38,7 +39,9 @@ import com.rekluzlabs.reminera.ui.home.RemineraViewModelFactory
 import com.rekluzlabs.reminera.ui.recording.AudioRecordScreen
 import com.rekluzlabs.reminera.ui.recording.VideoRecordScreen
 import com.rekluzlabs.reminera.ui.settings.AiSettingsScreen
+import com.rekluzlabs.reminera.ui.settings.BackupRestoreScreen
 import com.rekluzlabs.reminera.ui.settings.SettingsScreen
+import com.rekluzlabs.reminera.ui.settings.StorageUsageScreen
 import com.rekluzlabs.reminera.ui.settings.ThemeSettingsScreen
 import com.rekluzlabs.reminera.ui.settings.themes.ThemeManager
 import com.rekluzlabs.reminera.ui.settings.themes.ThemeMode
@@ -77,7 +80,7 @@ class MainActivity : ComponentActivity() {
                     }
                     showSettings -> {
                         BackHandler {
-                            if (settingsSection == "themes" || settingsSection == "ai") {
+                            if (settingsSection == "themes" || settingsSection == "ai" || settingsSection == "backup" || settingsSection == "storage") {
                                 settingsSection = "main"
                             } else {
                                 showSettings = false
@@ -97,11 +100,22 @@ class MainActivity : ComponentActivity() {
                             AiSettingsScreen(
                                 onBack = { settingsSection = "main" }
                             )
+                        } else if (settingsSection == "backup") {
+                            BackupRestoreScreen(
+                                onBack = { settingsSection = "main" }
+                            )
+                        } else if (settingsSection == "storage") {
+                            StorageUsageScreen(
+                                onBack = { settingsSection = "main" },
+                                onNavigateToBackup = { settingsSection = "backup" }
+                            )
                         } else {
                             SettingsScreen(
                                 currentTheme = themeMode,
                                 onNavigateToThemes = { settingsSection = "themes" },
                                 onNavigateToAi = { settingsSection = "ai" },
+                                onNavigateToBackup = { settingsSection = "backup" },
+                                onNavigateToStorage = { settingsSection = "storage" },
                                 onBack = { showSettings = false }
                             )
                         }
@@ -185,10 +199,20 @@ private fun RemineraNavHost(
             val context = LocalContext.current
             val database = remember { RemineraDatabase.getInstance(context) }
             val bioRepo = remember { BiographyRepository(database.biographyDao(), database.biographySectionDao(), database.storyEntryDao()) }
+            val chapterExportRepo = remember {
+                ChapterExportRepository(
+                    chapterDao = database.chapterExportDao(),
+                    memberDao = database.familyMemberDao(),
+                    biographyDao = database.biographyDao(),
+                    sectionDao = database.biographySectionDao(),
+                    storyDao = database.storyEntryDao(),
+                    memoryDao = database.memoryEntryDao()
+                )
+            }
             val membersList by viewModel.getMembersByGroupId(groupId).collectAsState(initial = emptyList())
             val member = remember(personId, membersList) { membersList.find { m -> m.id == personId } }
             val bioViewModel: BiographyViewModel = viewModel(
-                factory = BiographyViewModelFactory(personId, member, bioRepo)
+                factory = BiographyViewModelFactory(personId, member, bioRepo, chapterExportRepo)
             )
             BiographyScreen(
                 personId = personId,

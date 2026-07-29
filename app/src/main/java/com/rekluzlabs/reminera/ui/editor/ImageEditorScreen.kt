@@ -86,13 +86,15 @@ class ImageEditorViewModel : ViewModel() {
         private set
 
     fun loadImage(uri: Uri, context: Context) {
-        currentBitmap = null // Show loading
+        currentBitmap = null
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val bitmap = ImageUtils.loadBitmapWithExifOrientation(context, uri.toString())
                 val copy = bitmap.copy(Bitmap.Config.ARGB_8888, true)
-                originalBitmap = copy
-                currentBitmap = copy
+                withContext(Dispatchers.Main) {
+                    originalBitmap = copy
+                    currentBitmap = copy
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -102,14 +104,18 @@ class ImageEditorViewModel : ViewModel() {
     fun rotateLeft() {
         currentBitmap?.let { bitmap ->
             val matrix = Matrix().apply { postRotate(-90f) }
-            currentBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            if (rotated != bitmap) bitmap.recycle()
+            currentBitmap = rotated
         }
     }
 
     fun rotateRight() {
         currentBitmap?.let { bitmap ->
             val matrix = Matrix().apply { postRotate(90f) }
-            currentBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            if (rotated != bitmap) bitmap.recycle()
+            currentBitmap = rotated
         }
     }
 
@@ -124,11 +130,15 @@ class ImageEditorViewModel : ViewModel() {
             currentBitmap?.let { bitmap ->
                 val x = (normalizedRect.left * bitmap.width).toInt().coerceIn(0, bitmap.width - 1)
                 val y = (normalizedRect.top * bitmap.height).toInt().coerceIn(0, bitmap.height - 1)
-                val width = (normalizedRect.width() * bitmap.width).toInt().coerceIn(1, bitmap.width - x)
-                val height = (normalizedRect.height() * bitmap.height).toInt().coerceIn(1, bitmap.height - y)
+                val maxWidth = bitmap.width - x
+                val maxHeight = bitmap.height - y
+                val width = (normalizedRect.width() * bitmap.width).toInt().coerceIn(1, maxWidth)
+                val height = (normalizedRect.height() * bitmap.height).toInt().coerceIn(1, maxHeight)
 
-                if (width > 0 && height > 0) {
-                    currentBitmap = ImageUtils.cropBitmap(bitmap, x, y, width, height)
+                if (width > 0 && height > 0 && width <= maxWidth && height <= maxHeight) {
+                    val cropped = ImageUtils.cropBitmap(bitmap, x, y, width, height)
+                    if (cropped != bitmap) bitmap.recycle()
+                    currentBitmap = cropped
                     cropRect = null
                     true
                 } else {

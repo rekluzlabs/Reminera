@@ -53,6 +53,8 @@ fun SettingsScreen(
     currentTheme: ThemeMode,
     onNavigateToThemes: () -> Unit,
     onNavigateToAi: () -> Unit = {},
+    onNavigateToBackup: () -> Unit = {},
+    onNavigateToStorage: () -> Unit = {},
     onBack: () -> Unit
 ) {
     LazyColumn(
@@ -108,6 +110,18 @@ fun SettingsScreen(
                         title = "AI Biography (Gemini)",
                         subtitle = "Optional AI polish for chapters",
                         onClick = onNavigateToAi
+                    )
+                    SettingsRow(
+                        icon = R.drawable.ic_backup,
+                        title = "Backup & Restore",
+                        subtitle = "Export or import your data",
+                        onClick = onNavigateToBackup
+                    )
+                    SettingsRow(
+                        icon = R.drawable.ic_storage,
+                        title = "Storage Usage",
+                        subtitle = "See space used by media",
+                        onClick = onNavigateToStorage
                     )
                 }
             }

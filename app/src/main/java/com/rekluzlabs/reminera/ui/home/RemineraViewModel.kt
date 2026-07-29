@@ -376,6 +376,26 @@ class RemineraViewModel(
         }
     }
 
+    fun updateMemberDetails(
+        memberId: Long,
+        name: String,
+        role: String,
+        birthDate: Long?,
+        photoUri: String?
+    ) {
+        viewModelScope.launch {
+            val member = getMember(memberId) ?: return@launch
+            memberRepository.update(
+                member.copy(
+                    name = name,
+                    role = role,
+                    birthDate = birthDate,
+                    photoUri = photoUri ?: member.photoUri
+                )
+            )
+        }
+    }
+
     fun updateMemberPhoto(memberId: Long, photoUri: String?) {
         viewModelScope.launch {
             val member = getMember(memberId) ?: return@launch

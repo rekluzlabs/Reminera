@@ -113,6 +113,7 @@ import com.rekluzlabs.reminera.data.RemineraDatabase
 import com.rekluzlabs.reminera.data.defaultRolesForGroupType
 import com.rekluzlabs.reminera.ui.detail.MemoryDetailScreen
 import com.rekluzlabs.reminera.ui.detail.MemoryEditScreen
+import com.rekluzlabs.reminera.ui.editor.ImageEditorScreen
 import com.rekluzlabs.reminera.ui.settings.SettingsScreen
 import com.rekluzlabs.reminera.ui.settings.ThemeSettingsScreen
 import com.rekluzlabs.reminera.ui.settings.AiSettingsScreen
@@ -156,6 +157,8 @@ fun RemineraHomeScreen(
     var draftBio by remember { mutableStateOf("") }
     var showDeleteMemberDialog by remember { mutableStateOf(false) }
     var showFabOptions by remember { mutableStateOf(false) }
+    var fullScreenPhotoUri by remember { mutableStateOf<String?>(null) }
+    var editingPhotoUri by remember { mutableStateOf<Uri?>(null) }
 
     var isReorderMode by rememberSaveable { mutableStateOf(false) }
     var mediaMenuState by remember { mutableStateOf<MediaMenuState?>(null) }
@@ -163,7 +166,15 @@ fun RemineraHomeScreen(
     val snackbarScope = rememberCoroutineScope()
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val db = remember { RemineraDatabase.getInstance(context) }
+
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let { editingPhotoUri = it }
+    }
+
     val groupsState = db.familyGroupDao().getAllOrderedBySortOrder()
         .collectAsState(initial = emptyList())
     val allGroups = groupsState.value
@@ -208,7 +219,6 @@ fun RemineraHomeScreen(
 
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
 
     when {
         showSettings -> {
@@ -333,21 +343,33 @@ fun RemineraHomeScreen(
                                 if (memberPhoto != null) {
                                     Image(
                                         bitmap = memberPhoto.asImageBitmap(),
-                                        contentDescription = null,
+                                        contentDescription = "Member photo",
                                         modifier = Modifier
                                             .size(40.dp)
                                             .clip(CircleShape)
-                                            .padding(start = 4.dp),
+                                            .padding(start = 4.dp)
+                                            .combinedClickable(
+                                                onClick = { member.photoUri?.let { fullScreenPhotoUri = it } },
+                                                onLongClick = {
+                                                    photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                                }
+                                            ),
                                         contentScale = ContentScale.Crop
                                     )
                                 } else {
                                     Icon(
                                         imageVector = Icons.Default.Person,
-                                        contentDescription = null,
+                                        contentDescription = "Member photo",
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier
                                             .size(32.dp)
                                             .padding(start = 4.dp)
+                                            .combinedClickable(
+                                                onClick = { /* Nothing to show in full screen if null */ },
+                                                onLongClick = {
+                                                    photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                                }
+                                            )
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -621,6 +643,37 @@ fun RemineraHomeScreen(
                 )
             }
 
+            if (fullScreenPhotoUri != null) {
+                BackHandler { fullScreenPhotoUri = null }
+                FullScreenPhotoViewer(
+                    photoUri = fullScreenPhotoUri!!,
+                    onBack = { fullScreenPhotoUri = null },
+                    onEdit = {
+                        editingPhotoUri = Uri.parse(fullScreenPhotoUri!!)
+                        fullScreenPhotoUri = null
+                    }
+                )
+            }
+
+            if (editingPhotoUri != null) {
+                BackHandler { editingPhotoUri = null }
+                ImageEditorScreen(
+                    imageUri = editingPhotoUri!!,
+                    onSave = { editedUri ->
+                        scope.launch {
+                            val persistentUri = withContext(Dispatchers.IO) {
+                                try {
+                                    copyUriToInternal(context, editedUri, "jpg")
+                                } catch (_: Exception) { editedUri.toString() }
+                            }
+                            viewModel.updateMemberPhoto(memberId, persistentUri)
+                        }
+                        editingPhotoUri = null
+                    },
+                    onDismiss = { editingPhotoUri = null }
+                )
+            }
+
             if (showFabOptions) {
                 AlertDialog(
                     onDismissRequest = { showFabOptions = false },
@@ -662,6 +715,17 @@ fun RemineraHomeScreen(
                                 Icon(Icons.Default.DragHandle, contentDescription = null, modifier = Modifier.size(20.dp))
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text("Reorder memories", modifier = Modifier.weight(1f))
+                            }
+                            TextButton(
+                                onClick = {
+                                    showFabOptions = false
+                                    photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text("Change photo", modifier = Modifier.weight(1f))
                             }
                             TextButton(
                                 onClick = {

@@ -30,4 +30,10 @@ interface FamilyMemberDao {
 
     @Query("DELETE FROM family_members WHERE groupId = :groupId")
     suspend fun deleteByGroupId(groupId: Long)
+
+    @Query("SELECT * FROM family_members ORDER BY id ASC")
+    suspend fun getAllMembersList(): List<FamilyMemberEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDirect(member: FamilyMemberEntity)
 }

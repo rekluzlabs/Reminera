@@ -25,4 +25,7 @@ interface ChapterExportDao {
 
     @Query("UPDATE chapter_exports SET generatedBioText = :text, biographySource = :source, sourceDataHash = :hash, aiPolishedAt = :aiPolishedAt, lastGenerated = :lastGenerated WHERE memberId = :memberId")
     suspend fun updateAiPolished(memberId: Long, text: String, source: String, hash: String, aiPolishedAt: Long, lastGenerated: Long)
+
+    @Query("SELECT * FROM chapter_exports ORDER BY memberId ASC")
+    suspend fun getAllChaptersList(): List<ChapterExportEntity>
 }

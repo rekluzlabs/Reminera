@@ -76,33 +76,33 @@ object ImageUtils {
 
     @Throws(Exception::class)
     fun loadBitmapWithExifOrientation(context: Context, uri: Uri, maxDimension: Int = 2048): Bitmap {
-        val inputStream = context.contentResolver.openInputStream(uri)
-            ?: throw Exception("Unable to open input stream for $uri")
-
-        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeStream(inputStream, null, options)
-        inputStream.close()
-
         var inSampleSize = 1
-        if (options.outHeight > maxDimension || options.outWidth > maxDimension) {
-            inSampleSize = if (options.outHeight > options.outWidth) {
-                options.outHeight / maxDimension
-            } else {
-                options.outWidth / maxDimension
+        context.contentResolver.openInputStream(uri)?.use { inputStream ->
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeStream(inputStream, null, options)
+            if (options.outHeight > maxDimension || options.outWidth > maxDimension) {
+                inSampleSize = if (options.outHeight > options.outWidth) {
+                    options.outHeight / maxDimension
+                } else {
+                    options.outWidth / maxDimension
+                }
             }
-        }
+        } ?: throw Exception("Unable to open input stream for $uri")
 
         val inputStream2 = context.contentResolver.openInputStream(uri)
             ?: throw Exception("Unable to open input stream for $uri")
 
-        options.inJustDecodeBounds = false
-        options.inSampleSize = inSampleSize
-        val bitmap = BitmapFactory.decodeStream(inputStream2, null, options)
-            ?: throw Exception("Failed to decode bitmap from $uri")
-        inputStream2.close()
-
-        val orientation = getExifOrientation(uri, context)
-        return rotateBitmapIfNeeded(bitmap, orientation)
+        return inputStream2.use { stream ->
+            val sampleSize = inSampleSize
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = false
+                inSampleSize = sampleSize
+            }
+            val bitmap = BitmapFactory.decodeStream(stream, null, options)
+                ?: throw Exception("Failed to decode bitmap from $uri")
+            val orientation = getExifOrientation(uri, context)
+            rotateBitmapIfNeeded(bitmap, orientation)
+        }
     }
 
     @Throws(Exception::class)

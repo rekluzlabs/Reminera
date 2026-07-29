@@ -23,4 +23,10 @@ interface BookExportManifestDao {
 
     @Query("DELETE FROM book_export_manifests WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("SELECT * FROM book_export_manifests ORDER BY id ASC")
+    suspend fun getAllManifestsList(): List<BookExportManifestEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDirect(manifest: BookExportManifestEntity)
 }
