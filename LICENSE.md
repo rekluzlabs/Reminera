@@ -1,22 +1,33 @@
-Copyright (c) 2026 Rekluz Labs. All rights reserved.
+License & Copyright
 
-This software and all associated files (the "Software") are the exclusive 
-intellectual property of Rekluz Labs.
+Copyright © 2026 Rekluz Labs. All Rights Reserved.
 
-TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION:
+This repository and its associated assets — including but not limited to source code, graphics, and design files (the "Software") — are the exclusive property of the copyright holder.
 
-1. PROPRIETARY RIGHTS: This Software is not open-source. All rights, 
-   title, and interest in and to the Software remain with Rekluz Labs.
+Permitted Use
 
-2. PERSONAL USE ONLY: You are granted permission to download and view 
-   the source code for educational and personal purposes only.
+You may view, clone, and fork this repository, and modify your own local or forked copy, solely for personal, educational, and non-commercial purposes. You may not distribute, publish, deploy, or make publicly accessible any copy or modified version of the Software, whether unmodified, modified, or forked, without the copyright holder's express written permission.
 
-3. RESTRICTIONS: 
-   - You may not redistribute, sell, or sub-license the Software.
-   - You may not create derivative works for commercial gain.
-   - You may not use the branding, logo, or assets for any purpose 
-     without express written consent.
+Prohibited Use
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. 
-IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES, 
-OR OTHER LIABILITY.
+Without the copyright holder's express written permission, no part of the Software may be:
+
+redistributed or republished, in original or modified form, publicly or privately outside your own personal use; used, in whole or in part, in any commercial product or service; sublicensed, sold, rented, or otherwise made available to third parties.
+
+A public GitHub fork is considered a form of redistribution and is subject to the same restrictions as the original repository; forking for private, personal reference is permitted.
+
+No Warranty
+
+The Software is provided "as is," without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement.
+
+Limitation of Liability
+
+In no event shall the copyright holder be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the Software or the use or other dealings in the Software.
+
+Governing Law
+
+This license shall be governed by and construed in accordance with the laws of British Columbia, Canada, without regard to its conflict of law principles.
+
+Requesting Permission
+
+For licensing inquiries, commercial use, or redistribution requests, contact rekluzlabs@gmail.com
