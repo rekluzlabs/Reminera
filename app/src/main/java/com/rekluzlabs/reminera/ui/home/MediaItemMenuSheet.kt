@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -48,6 +49,7 @@ fun MediaItemMenuSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showRenameDialog by remember { mutableStateOf(false) }
+    var showEditUrlDialog by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -83,6 +85,16 @@ fun MediaItemMenuSheet(
                     showRenameDialog = true
                 }
             )
+
+            if (menuState.linkUrl != null) {
+                MediaMenuAction(
+                    icon = Icons.Default.Link,
+                    label = "Edit URL",
+                    onClick = {
+                        showEditUrlDialog = true
+                    }
+                )
+            }
 
             MediaMenuAction(
                 icon = Icons.Default.DriveFileMove,
@@ -123,6 +135,18 @@ fun MediaItemMenuSheet(
                 onDismiss()
             },
             onDismiss = { showRenameDialog = false }
+        )
+    }
+
+    if (showEditUrlDialog) {
+        EditUrlDialog(
+            currentUrl = menuState.linkUrl ?: "",
+            onConfirm = { newUrl ->
+                onAction(MediaAction.EditUrl(menuState.entryId, newUrl))
+                showEditUrlDialog = false
+                onDismiss()
+            },
+            onDismiss = { showEditUrlDialog = false }
         )
     }
 
@@ -303,6 +327,51 @@ private fun MoveToMemberDialog(
             }
         },
         confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun EditUrlDialog(
+    currentUrl: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var url by remember { mutableStateOf(currentUrl) }
+    val isValid = url.isNotBlank() && (url.startsWith("http://") || url.startsWith("https://"))
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit URL") },
+        text = {
+            OutlinedTextField(
+                value = url,
+                onValueChange = { url = it },
+                label = { Text("URL") },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(url.trim()) },
+                enabled = isValid
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
             }

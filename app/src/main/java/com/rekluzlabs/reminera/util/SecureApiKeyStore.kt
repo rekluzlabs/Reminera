@@ -152,11 +152,20 @@ class SecureApiKeyStore(context: Context) {
         context.deleteSharedPreferences(PREFS_FILE_NAME)
     }
 
+    fun isAiAccessEnabled(): Boolean {
+        return prefs.getBoolean(KEY_AI_ACCESS_ENABLED, false)
+    }
+
+    fun setAiAccessEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AI_ACCESS_ENABLED, enabled).apply()
+    }
+
     companion object {
         private const val PREFS_FILE_NAME = "reminera_ai_prefs"
         private const val KEY_API_KEY = "gemini_api_key"
         private const val KEY_SELECTED_MODEL = "selected_model"
         private const val KEY_VERIFIED = "key_verified"
+        private const val KEY_AI_ACCESS_ENABLED = "ai_access_enabled"
         const val DEFAULT_MODEL_ID = "gemini-3.1-flash-lite"
         private const val VERIFY_MODEL_ID = "gemini-2.5-flash"
         const val GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"

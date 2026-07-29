@@ -34,6 +34,8 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -43,6 +45,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -82,6 +86,7 @@ fun AiSettingsScreen(
     var showKey by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
     var selectedModelId by remember { mutableStateOf(keyStore.getSelectedModel()) }
+    var aiAccessEnabled by remember { mutableStateOf(keyStore.isAiAccessEnabled()) }
     var isVerifying by remember { mutableStateOf(false) }
     var verificationStatus by remember { mutableStateOf<Boolean?>(null) }
     var verificationError by remember { mutableStateOf<String?>(null) }
@@ -152,6 +157,61 @@ fun AiSettingsScreen(
         }
 
         item { Spacer(modifier = Modifier.height(24.dp)) }
+
+        item {
+            val enabled = aiAccessEnabled
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (enabled)
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Enable AI Biography Generation",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (enabled)
+                                "AI can generate and polish biography chapters for each family member."
+                            else
+                                "Turn on to allow AI-generated biography chapters.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Switch(
+                        checked = enabled,
+                        onCheckedChange = {
+                            aiAccessEnabled = it
+                            keyStore.setAiAccessEnabled(it)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    )
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(20.dp)) }
 
         item {
             Text(

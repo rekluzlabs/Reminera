@@ -10,6 +10,7 @@ data class StoryEntryEntity(
     val contributedBy: String,
     val type: String,
     val mediaUri: String?,
+    val thumbnailUri: String? = null,
     val textContent: String?,
     val recordedAt: Long,
     val createdAt: Long

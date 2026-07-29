@@ -816,7 +816,8 @@ fun RemineraHomeScreen(
                                         personTag = personTag,
                                         groupId = groupId,
                                         secondaryMediaPath = secondaryLocalPath,
-                                        secondaryMediaType = secondaryMediaType?.name
+                                        secondaryMediaType = secondaryMediaType?.name,
+                                        context = context
                                     )
                                 } else {
                                     viewModel.addRecordedMemory(
@@ -825,7 +826,8 @@ fun RemineraHomeScreen(
                                         localFilePath = localPath,
                                         durationMillis = 0L,
                                         personTag = personTag,
-                                        groupId = groupId
+                                        groupId = groupId,
+                                        context = context
                                     )
                                 }
                             }
@@ -982,8 +984,13 @@ private fun MemoryEntryCard(
     var showRenameDialog by remember { mutableStateOf(false) }
     val file = remember(entry.localFilePath) { File(entry.localFilePath) }
 
-    val thumbBitmap = remember(entry.localFilePath, entry.type) {
-        if (!file.exists()) null
+    val thumbBitmap = remember(entry.localFilePath, entry.thumbnailPath, entry.type) {
+        if (entry.thumbnailPath != null) {
+            val thumbFile = File(entry.thumbnailPath)
+            if (thumbFile.exists()) {
+                try { BitmapFactory.decodeFile(thumbFile.absolutePath) } catch (_: Exception) { null }
+            } else null
+        } else if (!file.exists()) null
         else when (entry.type) {
             "PHOTO" -> {
                 val opts = BitmapFactory.Options().apply { inSampleSize = 4 }

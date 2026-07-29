@@ -4,6 +4,7 @@ import com.rekluzlabs.reminera.data.FamilyMemberEntity
 
 sealed interface MediaAction {
     data class Rename(val entryId: String, val newTitle: String) : MediaAction
+    data class EditUrl(val entryId: String, val newUrl: String) : MediaAction
     data class Move(val entryId: String, val targetMemberId: Long, val targetMemberName: String) : MediaAction
     data class Download(val entryId: String) : MediaAction
     data class Delete(val entryId: String) : MediaAction
@@ -19,5 +20,6 @@ data class MediaMenuState(
     val entryTitle: String,
     val entryType: String,
     val currentMemberName: String?,
-    val members: List<FamilyMemberEntity>
+    val members: List<FamilyMemberEntity>,
+    val linkUrl: String? = null
 )

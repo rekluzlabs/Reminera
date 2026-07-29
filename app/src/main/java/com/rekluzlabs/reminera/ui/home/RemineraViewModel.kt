@@ -11,6 +11,7 @@ import com.rekluzlabs.reminera.data.UploadStatus
 import com.rekluzlabs.reminera.data.repository.FamilyMemberRepository
 import com.rekluzlabs.reminera.data.repository.MemoryEntryRepository
 import com.rekluzlabs.reminera.util.DownloadHelper
+import com.rekluzlabs.reminera.util.ThumbnailHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -94,18 +95,26 @@ class RemineraViewModel(
         localFilePath: String,
         durationMillis: Long,
         personTag: String?,
-        groupId: Long? = null
+        groupId: Long? = null,
+        context: Context? = null
     ) {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val maxSortOrder = getMaxSortOrder(groupId ?: _groupId.value ?: 0L, personTag)
+
+            val thumbnailPath = if (type == MemoryType.VIDEO && context != null) {
+                withContext(Dispatchers.IO) {
+                    ThumbnailHelper.generateVideoThumbnail(context, localFilePath)
+                }
+            } else null
+
             val entry = MemoryEntryEntity(
                 id = UUID.randomUUID().toString(),
                 groupId = groupId ?: _groupId.value ?: 0L,
                 title = title,
                 type = type.name,
                 localFilePath = localFilePath,
-                thumbnailPath = null,
+                thumbnailPath = thumbnailPath,
                 personTag = personTag,
                 notes = null,
                 dateCaptured = now,
@@ -127,17 +136,25 @@ class RemineraViewModel(
         personTag: String?,
         groupId: Long? = null,
         secondaryMediaPath: String? = null,
-        secondaryMediaType: String? = null
+        secondaryMediaType: String? = null,
+        context: Context? = null
     ) {
         viewModelScope.launch {
             val maxSortOrder = getMaxSortOrder(groupId ?: _groupId.value ?: 0L, personTag)
+
+            val thumbnailPath = if (secondaryMediaType == "VIDEO" && secondaryMediaPath != null && context != null) {
+                withContext(Dispatchers.IO) {
+                    ThumbnailHelper.generateVideoThumbnail(context, secondaryMediaPath)
+                }
+            } else null
+
             val entry = MemoryEntryEntity(
                 id = UUID.randomUUID().toString(),
                 groupId = groupId ?: _groupId.value ?: 0L,
                 title = title,
                 type = MemoryType.PHOTO.name,
                 localFilePath = localFilePath,
-                thumbnailPath = null,
+                thumbnailPath = thumbnailPath,
                 personTag = personTag,
                 notes = null,
                 dateCaptured = dateCaptured,
@@ -318,6 +335,14 @@ class RemineraViewModel(
                     } else {
                         _mediaActionResult.value = MediaActionResult.Error("Entry not found")
                     }
+                }
+
+                is MediaAction.EditUrl -> {
+                    _mediaActionResult.value = MediaActionResult.Error("URL editing not supported for memory entries")
+                }
+
+                is MediaAction.Move -> {
+                    _mediaActionResult.value = MediaActionResult.Error("Move not supported here")
                 }
             }
         }

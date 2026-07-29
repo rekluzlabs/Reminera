@@ -32,7 +32,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -45,8 +44,6 @@ import com.rekluzlabs.reminera.BuildConfig
 import com.rekluzlabs.reminera.R
 import com.rekluzlabs.reminera.ui.settings.themes.ThemeMode
 import com.rekluzlabs.reminera.ui.theme.RemineraTheme
-
-private val CyanPrimary = Color(0xFF00BCD4)
 
 @Composable
 fun SettingsScreen(
@@ -202,8 +199,8 @@ fun SettingsScreen(
                     onClick = onBack,
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = CyanPrimary.copy(alpha = 0.12f),
-                        contentColor = CyanPrimary
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     ),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
                     modifier = Modifier
@@ -240,7 +237,7 @@ private fun SettingsRow(
         Icon(
             painter = painterResource(id = icon),
             contentDescription = null,
-            tint = CyanPrimary,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.height(24.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))

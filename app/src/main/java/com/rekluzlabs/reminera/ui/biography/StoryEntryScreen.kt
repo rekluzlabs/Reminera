@@ -151,6 +151,7 @@ fun StoryEntryScreen(
     }
 
     if (showAddDialog) {
+        val context = androidx.compose.ui.platform.LocalContext.current
         AddStoryEntryDialog(
             onDismiss = { showAddDialog = false },
             onSave = { entryType, content, mediaUri ->
@@ -159,7 +160,8 @@ fun StoryEntryScreen(
                     type = entryType,
                     mediaUri = mediaUri,
                     textContent = content,
-                    recordedAt = System.currentTimeMillis()
+                    recordedAt = System.currentTimeMillis(),
+                    context = context
                 )
                 showAddDialog = false
             }

@@ -24,6 +24,9 @@ interface StoryEntryDao {
     @Query("UPDATE story_entries SET mediaUri = :mediaUri WHERE id = :id")
     suspend fun updateMediaUri(id: String, mediaUri: String?)
 
+    @Query("UPDATE story_entries SET thumbnailUri = :thumbnailUri WHERE id = :id")
+    suspend fun updateThumbnailUri(id: String, thumbnailUri: String?)
+
     @Query("UPDATE story_entries SET textContent = :textContent WHERE id = :id")
     suspend fun updateTextContent(id: String, textContent: String?)
 

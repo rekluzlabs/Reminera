@@ -19,17 +19,21 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,10 +42,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,6 +67,9 @@ fun BackupRestoreScreen(
     var restoreState by remember { mutableStateOf<ProgressState>(ProgressState.Idle) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var deleteConfirmText by remember { mutableStateOf("") }
+    var deleteState by remember { mutableStateOf<ProgressState>(ProgressState.Idle) }
 
     val lastBackupTime = remember { BackupRestoreHelper.getLastBackupTime(context) }
 
@@ -154,6 +161,172 @@ fun BackupRestoreScreen(
         )
     }
 
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = {
+                if (deleteState !is ProgressState.Running) {
+                    showDeleteConfirm = false
+                    deleteConfirmText = ""
+                }
+            },
+            icon = {
+                Icon(
+                    Icons.Default.DeleteForever,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error
+                )
+            },
+            title = {
+                Text(
+                    text = "Delete All Data",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "This will permanently delete ALL your data, including family groups, members, media files, biographies, and app settings. This action CANNOT be undone.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Have you made a backup? If not, go back and export your data first.",
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Type DELETE below to confirm:",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = deleteConfirmText,
+                        onValueChange = { deleteConfirmText = it },
+                        placeholder = { Text("DELETE") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Characters
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            deleteState = ProgressState.Running("Deleting all data...")
+                            val success = BackupRestoreHelper.clearAllData(context)
+                            deleteState = if (success) ProgressState.Success else ProgressState.Error("Failed to delete all data. Please try again.")
+                            if (success) {
+                                showDeleteConfirm = false
+                                deleteConfirmText = ""
+                            }
+                        }
+                    },
+                    enabled = deleteConfirmText == "DELETE" && deleteState !is ProgressState.Running,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Delete Everything", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        deleteConfirmText = ""
+                    },
+                    enabled = deleteState !is ProgressState.Running
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (deleteState is ProgressState.Error) {
+        AlertDialog(
+            onDismissRequest = { deleteState = ProgressState.Idle },
+            icon = {
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error
+                )
+            },
+            title = {
+                Text("Error", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    text = (deleteState as ProgressState.Error).message,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { deleteState = ProgressState.Idle }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
+    if (deleteState is ProgressState.Running) {
+        AlertDialog(
+            onDismissRequest = {},
+            icon = {
+                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+            },
+            title = {
+                Text("Deleting All Data...", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("Please wait while your data is being permanently removed.")
+            },
+            confirmButton = {}
+        )
+    }
+
+    if (backupState is ProgressState.Running) {
+        AlertDialog(
+            onDismissRequest = {},
+            icon = {
+                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+            },
+            title = {
+                Text("Backup in progress", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("Please be patient. Creating compressed archive of all your data. This may take a while for large backups.")
+            },
+            confirmButton = {}
+        )
+    }
+
+    if (restoreState is ProgressState.Running) {
+        AlertDialog(
+            onDismissRequest = {},
+            icon = {
+                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+            },
+            title = {
+                Text("Restore in progress", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("Please be patient. Extracting and restoring your data. This may take a while for large backups.")
+            },
+            confirmButton = {}
+        )
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -224,7 +397,7 @@ fun BackupRestoreScreen(
 
         item {
             Text(
-                text = "Creates a ZIP file containing your database and all media files (photos, videos, audio recordings).",
+                text = "Creates a ZIP file containing your database and all media files (photos, videos, audio recordings. This may take some time to perform depending on the amount of media being exported.).",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 8.dp)
@@ -255,7 +428,7 @@ fun BackupRestoreScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Backing up...")
                 } else {
-                    Text("Export All Data", fontWeight = FontWeight.Bold)
+                    Text("Backup and Export ALL Data", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -304,7 +477,7 @@ fun BackupRestoreScreen(
 
         item {
             Text(
-                text = "Import a previously exported backup. This will overwrite all current data.",
+                text = "Import a previously exported backup. This will overwrite all current data. This may take some time depending on backup file size.",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 8.dp)
@@ -315,10 +488,14 @@ fun BackupRestoreScreen(
 
         item {
             val isRunning = restoreState is ProgressState.Running
-            OutlinedButton(
+            Button(
                 onClick = { restoreLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
                 enabled = !isRunning && backupState !is ProgressState.Running,
                 shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    contentColor = MaterialTheme.colorScheme.onSecondary
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp)
@@ -363,6 +540,64 @@ fun BackupRestoreScreen(
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(horizontal = 8.dp).padding(top = 8.dp)
                 )
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(24.dp)) }
+
+        item {
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+        }
+
+        item { Spacer(modifier = Modifier.height(16.dp)) }
+
+        item {
+            Text(
+                text = "Danger Zone",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+        }
+
+        item {
+            Text(
+                text = "Permanently erase all app data and reset to factory state.",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+        }
+
+        item { Spacer(modifier = Modifier.height(12.dp)) }
+
+        item {
+            val isRunning = deleteState is ProgressState.Running
+            Button(
+                onClick = {
+                    deleteConfirmText = ""
+                    showDeleteConfirm = true
+                },
+                enabled = !isRunning && backupState !is ProgressState.Running && restoreState !is ProgressState.Running,
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+            ) {
+                Icon(
+                    Icons.Default.DeleteForever,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Delete All Data", fontWeight = FontWeight.Bold)
             }
         }
 

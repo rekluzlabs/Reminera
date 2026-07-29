@@ -128,6 +128,10 @@ class MainActivity : ComponentActivity() {
                             onSettingsClick = { 
                                 settingsSection = "main"
                                 showSettings = true 
+                            },
+                            onNavigateToAiSettings = {
+                                settingsSection = "ai"
+                                showSettings = true
                             }
                         )
                     }
@@ -142,7 +146,8 @@ private fun RemineraNavHost(
     viewModel: RemineraViewModel,
     themeManager: ThemeManager,
     themeMode: ThemeMode,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onNavigateToAiSettings: () -> Unit = {}
 ) {
     val navController = rememberNavController()
 
@@ -221,6 +226,7 @@ private fun RemineraNavHost(
                 remineraViewModel = viewModel,
                 onBack = { navController.popBackStack() },
                 onSettingsClick = onSettingsClick,
+                onNavigateToAiSettings = onNavigateToAiSettings,
                 onNavigateToStory = { biographyId ->
                     navController.navigate("story/$biographyId")
                 },

@@ -1,6 +1,7 @@
 package com.rekluzlabs.reminera.ui.biography
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -41,10 +44,13 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
@@ -98,10 +104,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rekluzlabs.reminera.data.StoryEntryEntity
+import com.rekluzlabs.reminera.export.ChapterPdfRenderer
 import com.rekluzlabs.reminera.export.GeminiBiographyProvider
 import com.rekluzlabs.reminera.ui.editor.ImageEditorScreen
 import com.rekluzlabs.reminera.ui.home.MediaAction
@@ -111,6 +121,7 @@ import com.rekluzlabs.reminera.ui.home.MediaMenuState
 import com.rekluzlabs.reminera.ui.home.RemineraViewModel
 import com.rekluzlabs.reminera.util.AudioRecorder
 import com.rekluzlabs.reminera.util.MediaSaver
+import com.rekluzlabs.reminera.util.ThumbnailHelper
 import com.rekluzlabs.reminera.util.PlaybackManager
 import com.rekluzlabs.reminera.util.SecureApiKeyStore
 import com.rekluzlabs.reminera.util.copyUriToInternal
@@ -134,6 +145,7 @@ fun BiographyScreen(
     remineraViewModel: RemineraViewModel? = null,
     onBack: () -> Unit,
     onSettingsClick: () -> Unit = {},
+    onNavigateToAiSettings: () -> Unit = {},
     onNavigateToStory: (biographyId: String) -> Unit = {},
     onAddMemory: () -> Unit = {}
 ) {
@@ -145,6 +157,8 @@ fun BiographyScreen(
     var fullScreenEntryId by remember { mutableStateOf<String?>(null) }
     var fullScreenVideoUri by remember { mutableStateOf<String?>(null) }
     var fullScreenAudioUri by remember { mutableStateOf<String?>(null) }
+    // Removed fullScreenYouTubeId as we now open YouTube directly via Intent
+
     var showImageEditor by remember { mutableStateOf<Uri?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -153,6 +167,11 @@ fun BiographyScreen(
     val isAiPolishing by viewModel.isAiPolishing.collectAsState()
     val aiPolishResult by viewModel.aiPolishResult.collectAsState()
     var showAiConsentDialog by remember { mutableStateOf(false) }
+    var showAiAccessDialog by remember { mutableStateOf(false) }
+    var showApiKeyDialog by remember { mutableStateOf(false) }
+    var showChapterTextPreview by remember { mutableStateOf(false) }
+    var isExportingPdf by remember { mutableStateOf(false) }
+    var isExportingText by remember { mutableStateOf(false) }
 
     val mediaEntries = uiState.storyEntries.filter { it.type == "audio" || it.type == "video" || it.type == "photo" }
 
@@ -193,7 +212,7 @@ fun BiographyScreen(
                         copyUriToInternal(context, uri, "jpg")
                     } catch (_: Exception) { uri.toString() }
                 }
-                viewModel.addStoryEntry("You", "photo", persistentUri, null, System.currentTimeMillis())
+                viewModel.addStoryEntry("You", "photo", persistentUri, null, System.currentTimeMillis(), context)
             }
         }
     }
@@ -208,7 +227,7 @@ fun BiographyScreen(
                         copyUriToInternal(context, uri, "mp4")
                     } catch (_: Exception) { uri.toString() }
                 }
-                viewModel.addStoryEntry("You", "video", persistentUri, null, System.currentTimeMillis())
+                viewModel.addStoryEntry("You", "video", persistentUri, null, System.currentTimeMillis(), context)
             }
         }
     }
@@ -224,7 +243,7 @@ fun BiographyScreen(
                         copyUriToInternal(context, tempVideoCaptureUri!!, "mp4")
                     } catch (_: Exception) { tempVideoCaptureUri.toString() }
                 }
-                viewModel.addStoryEntry("You", "video", persistentUri, null, System.currentTimeMillis())
+                viewModel.addStoryEntry("You", "video", persistentUri, null, System.currentTimeMillis(), context)
             }
         }
     }
@@ -239,7 +258,7 @@ fun BiographyScreen(
                         copyUriToInternal(context, uri, "m4a")
                     } catch (_: Exception) { uri.toString() }
                 }
-                viewModel.addStoryEntry("You", "audio", persistentUri, null, System.currentTimeMillis())
+                viewModel.addStoryEntry("You", "audio", persistentUri, null, System.currentTimeMillis(), context)
             }
         }
     }
@@ -589,15 +608,48 @@ fun BiographyScreen(
                                                     fullScreenEntryId = mediaEntry.id
                                                 }
                                                 "video" -> mediaEntry.mediaUri?.let { uri ->
-                                                    val file = File(uri)
-                                                    if (file.exists()) {
-                                                        fullScreenVideoUri = uri
+                                                    val isUrl = uri.startsWith("http://") || uri.startsWith("https://")
+                                                    if (isUrl) {
+                                                        if (uri.contains("youtube.com") || uri.contains("youtu.be")) {
+                                                            val videoId = ThumbnailHelper.extractYouTubeVideoId(uri)
+                                                            if (videoId != null) {
+                                                                val appIntent = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$videoId"))
+                                                                    .setPackage("com.google.android.youtube")
+
+                                                                val webIntent = Intent(Intent.ACTION_VIEW,
+                                                                    Uri.parse("https://www.youtube.com/watch?v=$videoId"))
+
+                                                                try {
+                                                                    context.startActivity(appIntent)
+                                                                } catch (e: Exception) {
+                                                                    context.startActivity(webIntent)
+                                                                }
+                                                            }
+                                                        } else if (uri.contains("vimeo.com")) {
+                                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(uri)).apply {
+                                                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_DOCUMENT)
+                                                                addFlags(android.content.Intent.FLAG_ACTIVITY_NO_HISTORY)
+                                                            }
+                                                            context.startActivity(intent)
+                                                        } else {
+                                                            fullScreenVideoUri = uri
+                                                        }
+                                                    } else {
+                                                        val file = File(uri)
+                                                        if (file.exists()) {
+                                                            fullScreenVideoUri = uri
+                                                        }
                                                     }
                                                 }
                                                 "audio" -> mediaEntry.mediaUri?.let { uri ->
-                                                    val file = File(uri)
-                                                    if (file.exists()) {
+                                                    val isUrl = uri.startsWith("http://") || uri.startsWith("https://")
+                                                    if (isUrl) {
                                                         fullScreenAudioUri = uri
+                                                    } else {
+                                                        val file = File(uri)
+                                                        if (file.exists()) {
+                                                            fullScreenAudioUri = uri
+                                                        }
                                                     }
                                                 }
                                             }
@@ -609,12 +661,14 @@ fun BiographyScreen(
                                         },
                                         onMenuClick = { mediaEntry ->
                                             val memberName = biography?.fullName ?: memberName
+                                            val entryUri = mediaEntry.mediaUri
                                             mediaMenuState = MediaMenuState(
                                                 entryId = mediaEntry.id,
                                                 entryTitle = mediaEntry.textContent ?: mediaEntry.type.replaceFirstChar { it.uppercase() },
                                                 entryType = mediaEntry.type,
                                                 currentMemberName = memberName,
-                                                members = emptyList()
+                                                members = emptyList(),
+                                                linkUrl = if (entryUri != null && (entryUri.startsWith("http://") || entryUri.startsWith("https://"))) entryUri else null
                                             )
                                         }
                                     )
@@ -704,7 +758,7 @@ fun BiographyScreen(
                                                 val persistentUri = withContext(Dispatchers.IO) {
                                                     copyUriToInternal(context, Uri.fromFile(tempFile), "m4a")
                                                 }
-                                                viewModel.addStoryEntry("You", "audio", persistentUri, null, System.currentTimeMillis())
+                                                viewModel.addStoryEntry("You", "audio", persistentUri, null, System.currentTimeMillis(), context)
                                             }
                                         }
                                     }
@@ -734,6 +788,7 @@ fun BiographyScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // AI biography source indicator
+            val hasChapterText = chapterExport?.generatedBioText?.isNotBlank() == true
             Card(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(
@@ -743,61 +798,192 @@ fun BiographyScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Chapter Text",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        val source = chapterExport?.biographySource
-                        Text(
-                            text = when (source) {
-                                "AI_POLISHED" -> "AI-polished"
-                                else -> "Raw (your own words)"
-                            },
-                            fontSize = 13.sp,
-                            color = if (source == "AI_POLISHED")
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (isAiPolishing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        val keyStore = remember { SecureApiKeyStore(context) }
-                        FilledTonalButton(
-                            onClick = {
-                                if (!keyStore.hasApiKey()) {
-                                    onSettingsClick()
-                                } else if (!hasConsent(context)) {
-                                    showAiConsentDialog = true
-                                } else {
-                                    viewModel.requestAiPolish(
-                                        GeminiBiographyProvider(keyStore.getApiKey()!!, keyStore.getSelectedModel())
-                                    )
-                                }
-                            },
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = if (chapterExport?.biographySource == "AI_POLISHED")
-                                    "Regenerate"
-                                else
-                                    "Generate AI",
-                                fontSize = 12.sp
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (hasChapterText) Modifier.clickable { showChapterTextPreview = true }
+                                else Modifier
                             )
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Chapter Text",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            val source = chapterExport?.biographySource
+                            Text(
+                                text = when {
+                                    hasChapterText && source == "AI_POLISHED" -> "AI-polished — tap to preview"
+                                    hasChapterText -> "Raw — tap to preview"
+                                    else -> "No text yet"
+                                },
+                                fontSize = 13.sp,
+                                color = if (hasChapterText)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (isAiPolishing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            val keyStore = remember { SecureApiKeyStore(context) }
+                            FilledTonalButton(
+                                onClick = {
+                                    if (!keyStore.isAiAccessEnabled()) {
+                                        showAiAccessDialog = true
+                                    } else if (!keyStore.hasApiKey() || !keyStore.isVerified()) {
+                                        showApiKeyDialog = true
+                                    } else if (!hasConsent(context)) {
+                                        showAiConsentDialog = true
+                                    } else {
+                                        viewModel.requestAiPolish(
+                                            GeminiBiographyProvider(keyStore.getApiKey()!!, keyStore.getSelectedModel())
+                                        )
+                                    }
+                                },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = if (chapterExport?.biographySource == "AI_POLISHED")
+                                        "Regenerate"
+                                    else
+                                        "Generate AI",
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+                    if (hasChapterText) {
+                        Spacer(modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    val text = chapterExport?.generatedBioText ?: return@TextButton
+                                    isExportingPdf = true
+                                    scope.launch {
+                                        try {
+                                            val html = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body { padding: 40px; font-family: Georgia, serif; line-height: 1.8; font-size: 12pt; color: #000; }
+h1 { font-size: 22pt; margin-bottom: 20px; }
+p { margin-bottom: 10px; }
+</style></head><body>
+<h1>${biography?.fullName?.replace("&", "&amp;")?.replace("<", "&lt;")?.replace(">", "&gt;") ?: memberName}</h1>
+${text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")}
+</body></html>"""
+                                            val result = withContext(Dispatchers.Main) {
+                                                ChapterPdfRenderer.renderChapter(
+                                                    context = context,
+                                                    memberId = personId,
+                                                    html = html,
+                                                    chapterTitle = "Chapter: ${biography?.fullName ?: memberName}"
+                                                )
+                                            }
+                                            if (result is ChapterPdfRenderer.RenderResult.Success) {
+                                                val uri = FileProvider.getUriForFile(
+                                                    context,
+                                                    "com.rekluzlabs.reminera.fileprovider",
+                                                    result.outputFile
+                                                )
+                                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                    setDataAndType(uri, "application/pdf")
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                context.startActivity(intent)
+                                            } else {
+                                                val msg = (result as? ChapterPdfRenderer.RenderResult.Failure)?.error ?: "PDF generation failed"
+                                                snackbarHostState.showSnackbar(msg)
+                                            }
+                                        } catch (e: Exception) {
+                                            snackbarHostState.showSnackbar("PDF export failed: ${e.message}")
+                                        }
+                                        isExportingPdf = false
+                                    }
+                                },
+                                enabled = !isExportingPdf
+                            ) {
+                                if (isExportingPdf) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.PictureAsPdf,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Export PDF", fontSize = 12.sp)
+                            }
+                            TextButton(
+                                onClick = {
+                                    val text = chapterExport?.generatedBioText ?: return@TextButton
+                                    isExportingText = true
+                                    scope.launch {
+                                        try {
+                                            val file = withContext(Dispatchers.IO) {
+                                                val outputDir = File(context.cacheDir, "chapter_exports")
+                                                outputDir.mkdirs()
+                                                val f = File(outputDir, "${biography?.fullName ?: memberName}_chapter.txt")
+                                                f.writeText(text)
+                                                f
+                                            }
+                                            val uri = FileProvider.getUriForFile(
+                                                context,
+                                                "com.rekluzlabs.reminera.fileprovider",
+                                                file
+                                            )
+                                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                                setDataAndType(uri, "text/plain")
+                                                putExtra(Intent.EXTRA_STREAM, uri)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            context.startActivity(Intent.createChooser(intent, "Share Chapter Text"))
+                                        } catch (e: Exception) {
+                                            snackbarHostState.showSnackbar("Text export failed: ${e.message}")
+                                        }
+                                        isExportingText = false
+                                    }
+                                },
+                                enabled = !isExportingText
+                            ) {
+                                if (isExportingText) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.Description,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Export Text", fontSize = 12.sp)
+                            }
                         }
                     }
                 }
@@ -813,6 +999,201 @@ fun BiographyScreen(
                         )
                     },
                     onDismiss = { showAiConsentDialog = false }
+                )
+            }
+
+            if (showAiAccessDialog) {
+                AlertDialog(
+                    onDismissRequest = { showAiAccessDialog = false },
+                    title = {
+                        Text(
+                            text = "AI Biography Access",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = "AI biography generation is currently disabled. " +
+                                "Enable it in Settings to use this feature.\n\n" +
+                                "Your API key and data remain secure and are never used without your permission.",
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                showAiAccessDialog = false
+                                onNavigateToAiSettings()
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Text("Go to Settings")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showAiAccessDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
+
+            if (showApiKeyDialog) {
+                var apiKeyInput by remember { mutableStateOf("") }
+                var isVerifying by remember { mutableStateOf(false) }
+                var verifyError by remember { mutableStateOf<String?>(null) }
+                val scope = rememberCoroutineScope()
+
+                AlertDialog(
+                    onDismissRequest = { showApiKeyDialog = false },
+                    title = {
+                        Text(
+                            text = "API Key Required",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        )
+                    },
+                    text = {
+                        Column {
+                            Text(
+                                text = "AI biography generation requires a verified Gemini API key. " +
+                                    "Enter your key below or go to Settings to configure it.",
+                                fontSize = 14.sp,
+                                lineHeight = 20.sp
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = apiKeyInput,
+                                onValueChange = {
+                                    apiKeyInput = it
+                                    verifyError = null
+                                },
+                                placeholder = { Text("Enter your API key...") },
+                                visualTransformation = PasswordVisualTransformation(),
+                                singleLine = true,
+                                isError = verifyError != null,
+                                supportingText = verifyError?.let { err ->
+                                    { Text(err, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
+                                },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    cursorColor = MaterialTheme.colorScheme.primary,
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            if (isVerifying) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Verifying key...",
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                if (apiKeyInput.isNotBlank()) {
+                                    isVerifying = true
+                                    verifyError = null
+                                    val ks = SecureApiKeyStore(context)
+                                    scope.launch {
+                                        val result = ks.verifyApiKey(apiKeyInput.trim())
+                                        isVerifying = false
+                                        if (result.isSuccess) {
+                                            ks.saveApiKey(apiKeyInput.trim())
+                                            ks.saveVerified(true)
+                                            showApiKeyDialog = false
+                                            if (!hasConsent(context)) {
+                                                showAiConsentDialog = true
+                                            } else {
+                                                viewModel.requestAiPolish(
+                                                    GeminiBiographyProvider(ks.getApiKey()!!, ks.getSelectedModel())
+                                                )
+                                            }
+                                        } else {
+                                            verifyError = result.exceptionOrNull()?.message
+                                                ?: "Key verification failed. Please check your key and try again."
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = apiKeyInput.isNotBlank() && !isVerifying,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Text("Save & Continue")
+                        }
+                    },
+                    dismissButton = {
+                        Row {
+                            TextButton(onClick = {
+                                showApiKeyDialog = false
+                                onNavigateToAiSettings()
+                            }) {
+                                Text("Go to Settings")
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            TextButton(onClick = { showApiKeyDialog = false }) {
+                                Text("Cancel")
+                            }
+                        }
+                    }
+                )
+            }
+
+            if (showChapterTextPreview) {
+                val text = chapterExport?.generatedBioText ?: ""
+                val source = chapterExport?.biographySource
+                AlertDialog(
+                    onDismissRequest = { showChapterTextPreview = false },
+                    title = {
+                        Text(
+                            text = when (source) {
+                                "AI_POLISHED" -> "Chapter Text (AI-polished)"
+                                else -> "Chapter Text (Raw)"
+                            },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                    },
+                    text = {
+                        Box(
+                            modifier = Modifier
+                                .heightIn(max = 400.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            Text(
+                                text = text,
+                                fontSize = 14.sp,
+                                lineHeight = 22.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showChapterTextPreview = false }) {
+                            Text("Close")
+                        }
+                    }
                 )
             }
 
@@ -1078,6 +1459,7 @@ fun BiographyScreen(
         }
     }
 
+
     editingSection?.let { section ->
         SectionEditSheet(
             sectionType = section.type,
@@ -1088,6 +1470,19 @@ fun BiographyScreen(
                 editingSection = null
             },
             onDismiss = { editingSection = null }
+        )
+    }
+
+    if (showFabOptions) {
+        AddStoryEntryDialog(
+            onDismiss = { showFabOptions = false },
+            onSave = { type, textContent, mediaUri ->
+                viewModel.addStoryEntry(
+                    "You", type, mediaUri, textContent,
+                    System.currentTimeMillis(), context
+                )
+                showFabOptions = false
+            }
         )
     }
 
@@ -1271,7 +1666,64 @@ private fun MediaEntryRow(
                     }
                 }
                 "video" -> {
-                    Icon(Icons.Default.Videocam, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                    val isLinkUri = entry.mediaUri?.let { it.startsWith("http://") || it.startsWith("https://") } == true
+
+                    val thumb = remember(entry.thumbnailUri, entry.mediaUri) {
+                        entry.thumbnailUri?.let { path ->
+                            try {
+                                android.graphics.BitmapFactory.decodeFile(path)
+                            } catch (_: Exception) { null }
+                        } ?: if (!isLinkUri) entry.mediaUri?.let { uriStr ->
+                            try {
+                                val retriever = android.media.MediaMetadataRetriever()
+                                val file = File(uriStr)
+                                if (file.exists()) {
+                                    retriever.setDataSource(uriStr)
+                                } else {
+                                    retriever.setDataSource(context, Uri.parse(uriStr))
+                                }
+                                val frame = retriever.frameAtTime
+                                retriever.release()
+                                frame
+                            } catch (_: Exception) { null }
+                        } else null
+                    }
+
+                    if (thumb != null) {
+                        Box {
+                            Image(
+                                bitmap = thumb.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(8.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .align(Alignment.Center)
+                                    .background(Color.Black.copy(alpha = 0.3f), CircleShape)
+                            )
+                        }
+                    } else if (isLinkUri) {
+                        Icon(
+                            imageVector = Icons.Default.Link,
+                            contentDescription = "External link",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Videocam,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
                 }
                 "audio" -> {
                     Icon(Icons.Default.Audiotrack, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
@@ -1287,6 +1739,16 @@ private fun MediaEntryRow(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
                     )
+                    val mediaUri = entry.mediaUri
+                    if (mediaUri != null && (mediaUri.startsWith("http://") || mediaUri.startsWith("https://"))) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.Link,
+                            contentDescription = "External link",
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.width(6.dp))
                     Icon(
                         imageVector = Icons.Default.Edit,
@@ -1388,7 +1850,12 @@ private fun BiographyFullScreenVideo(
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
-    val uri = remember(videoUri) { Uri.fromFile(File(videoUri)) }
+    val uri = remember(videoUri) {
+        if (videoUri.startsWith("http://") || videoUri.startsWith("https://"))
+            Uri.parse(videoUri)
+        else
+            Uri.fromFile(File(videoUri))
+    }
     val key = remember(videoUri) { "bio_video_$videoUri" }
     val playbackManager = remember(videoUri) {
         PlaybackManager.getInstance(context, key)
@@ -1571,7 +2038,12 @@ private fun BiographyFullScreenAudio(
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
-    val uri = remember(audioUri) { Uri.fromFile(File(audioUri)) }
+    val uri = remember(audioUri) {
+        if (audioUri.startsWith("http://") || audioUri.startsWith("https://"))
+            Uri.parse(audioUri)
+        else
+            Uri.fromFile(File(audioUri))
+    }
     val key = remember(audioUri) { "bio_audio_$audioUri" }
     val playbackManager = remember(audioUri) {
         PlaybackManager.getInstance(context, key)
@@ -1741,6 +2213,7 @@ private fun BiographyFullScreenAudio(
         }
     }
 }
+
 
 private fun formatBioTime(millis: Long): String {
     val minutes = java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(millis)

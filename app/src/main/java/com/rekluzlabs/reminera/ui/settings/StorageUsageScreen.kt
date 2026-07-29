@@ -57,6 +57,8 @@ import com.rekluzlabs.reminera.data.MemoryEntryEntity
 import com.rekluzlabs.reminera.data.FamilyMemberEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import android.os.Environment
+import android.os.StatFs
 import java.io.File
 
 private data class StorageCategory(
@@ -84,7 +86,8 @@ private data class StorageStats(
     val dbSizeBytes: Long,
     val mediaDirSize: Long,
     val recordingsDirSize: Long,
-    val exportDirSize: Long
+    val exportDirSize: Long,
+    val totalDeviceBytes: Long
 )
 
 private val PhotoColor = Color(0xFF4CAF50)
@@ -194,6 +197,108 @@ fun StorageUsageScreen(
 
             item { Spacer(modifier = Modifier.height(20.dp)) }
 
+            if (s.totalDeviceBytes > 0) {
+                item {
+                    Text(
+                        text = "Device Storage",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+
+                item { Spacer(modifier = Modifier.height(12.dp)) }
+
+                item {
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            val fraction = s.totalSize.toFloat() / s.totalDeviceBytes.toFloat()
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(12.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(fraction.coerceAtLeast(0.01f))
+                                        .height(12.dp)
+                                        .background(MaterialTheme.colorScheme.primary)
+                                )
+                                if (fraction < 1f) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight((1f - fraction).coerceAtLeast(0.01f))
+                                            .height(12.dp)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "App Data",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "%.2f%%".format(fraction * 100),
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Text(
+                                    text = formatSize(s.totalSize),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Device Capacity",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    text = formatSize(s.totalDeviceBytes),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(20.dp)) }
+            }
+
             item {
                 Text(
                     text = "By Media Type",
@@ -283,7 +388,7 @@ fun StorageUsageScreen(
 
             item {
                 Text(
-                    text = "Tip: Use Backup & Restore to export data you no longer need on-device.",
+                    text = "Tip: Use Backup & Restore to export data.",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 4.dp)
@@ -463,6 +568,8 @@ private suspend fun computeStorageStats(context: Context): StorageStats {
     val entries = database.memoryEntryDao().getAllEntriesList()
     val groups = database.familyGroupDao().getAllOrderedBySortOrderList()
     val members = database.familyMemberDao().getAllMembersList()
+    val stories = database.storyEntryDao().getAllStoriesList()
+    val biographies = database.biographyDao().getAllBiographiesList()
 
     val mediaDir = File(context.filesDir, "media")
     val recordingsDir = File(context.filesDir, "recordings")
@@ -475,19 +582,40 @@ private suspend fun computeStorageStats(context: Context): StorageStats {
     var otherBytes = 0L; var otherCount = 0
 
     entries.forEach { entry ->
-        val filePaths = mutableListOf(entry.localFilePath)
-        entry.thumbnailPath?.let { filePaths.add(it) }
-        entry.secondaryMediaPath?.let { filePaths.add(it) }
+        val primaryFile = File(entry.localFilePath)
+        if (primaryFile.exists()) {
+            val size = primaryFile.length()
+            when (entry.type) {
+                "PHOTO" -> { photoBytes += size; photoCount++ }
+                "VIDEO" -> { videoBytes += size; videoCount++ }
+                "AUDIO" -> { audioBytes += size; audioCount++ }
+                else -> { otherBytes += size; otherCount++ }
+            }
+        }
 
-        filePaths.forEach { path ->
+        entry.thumbnailPath?.let { path ->
+            val file = File(path)
+            if (file.exists()) {
+                otherBytes += file.length()
+                otherCount++
+            }
+        }
+
+        entry.secondaryMediaPath?.let { path ->
             val file = File(path)
             if (file.exists()) {
                 val size = file.length()
-                when (entry.type) {
-                    "PHOTO" -> { photoBytes += size; photoCount++ }
+                when (entry.secondaryMediaType) {
                     "VIDEO" -> { videoBytes += size; videoCount++ }
                     "AUDIO" -> { audioBytes += size; audioCount++ }
-                    else -> { otherBytes += size; otherCount++ }
+                    else -> {
+                        when (entry.type) {
+                            "PHOTO" -> { photoBytes += size; photoCount++ }
+                            "VIDEO" -> { videoBytes += size; videoCount++ }
+                            "AUDIO" -> { audioBytes += size; audioCount++ }
+                            else -> { otherBytes += size; otherCount++ }
+                        }
+                    }
                 }
             }
         }
@@ -503,10 +631,44 @@ private suspend fun computeStorageStats(context: Context): StorageStats {
         }
     }
 
+    stories.forEach { story ->
+        story.mediaUri?.let { path ->
+            val file = File(path)
+            if (file.exists()) {
+                val size = file.length()
+                when (story.type.lowercase()) {
+                    "video" -> { videoBytes += size; videoCount++ }
+                    "audio" -> { audioBytes += size; audioCount++ }
+                    else -> { otherBytes += size; otherCount++ }
+                }
+            }
+        }
+        story.thumbnailUri?.let { path ->
+            val file = File(path)
+            if (file.exists()) {
+                otherBytes += file.length()
+                otherCount++
+            }
+        }
+    }
+
+    biographies.forEach { bio ->
+        bio.photoUri?.let { path ->
+            val file = File(path)
+            if (file.exists()) {
+                photoBytes += file.length()
+                photoCount++
+            }
+        }
+    }
+
     val dbSize = if (dbFile.exists()) dbFile.length() else 0L
     val mediaDirSize = dirSize(mediaDir)
     val recordingsDirSize = dirSize(recordingsDir)
     val exportDirSize = dirSize(exportsDir)
+
+    val stat = StatFs(Environment.getDataDirectory().absolutePath)
+    val totalDeviceBytes = stat.totalBytes
 
     val categories = listOf(
         StorageCategory("Photos", photoBytes, photoCount, PhotoColor),
@@ -527,17 +689,42 @@ private suspend fun computeStorageStats(context: Context): StorageStats {
         var gPhotoCount = 0; var gVideoCount = 0; var gAudioCount = 0
 
         groupEntryList.forEach { entry ->
-            val filePaths = mutableListOf(entry.localFilePath)
-            entry.thumbnailPath?.let { filePaths.add(it) }
-            entry.secondaryMediaPath?.let { filePaths.add(it) }
+            var addsToPhoto = false; var addsToVideo = false; var addsToAudio = false
+            var szPhoto = 0L; var szVideo = 0L; var szAudio = 0L
 
-            val totalEntrySize = filePaths.sumOf { File(it).let { f -> if (f.exists()) f.length() else 0L } }
-
-            when (entry.type) {
-                "PHOTO" -> { gPhoto += totalEntrySize; gPhotoCount++ }
-                "VIDEO" -> { gVideo += totalEntrySize; gVideoCount++ }
-                "AUDIO" -> { gAudio += totalEntrySize; gAudioCount++ }
+            val primaryFile = File(entry.localFilePath)
+            if (primaryFile.exists()) {
+                val size = primaryFile.length()
+                when (entry.type) {
+                    "PHOTO" -> { szPhoto += size; addsToPhoto = true }
+                    "VIDEO" -> { szVideo += size; addsToVideo = true }
+                    "AUDIO" -> { szAudio += size; addsToAudio = true }
+                    else -> {}
+                }
             }
+
+            entry.secondaryMediaPath?.let { path ->
+                val f = File(path)
+                if (f.exists()) {
+                    val size = f.length()
+                    when (entry.secondaryMediaType) {
+                        "VIDEO" -> { szVideo += size; addsToVideo = true }
+                        "AUDIO" -> { szAudio += size; addsToAudio = true }
+                        else -> {
+                            when (entry.type) {
+                                "PHOTO" -> { szPhoto += size; addsToPhoto = true }
+                                "VIDEO" -> { szVideo += size; addsToVideo = true }
+                                "AUDIO" -> { szAudio += size; addsToAudio = true }
+                                else -> {}
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (addsToPhoto) { gPhoto += szPhoto; gPhotoCount++ }
+            if (addsToVideo) { gVideo += szVideo; gVideoCount++ }
+            if (addsToAudio) { gAudio += szAudio; gAudioCount++ }
         }
 
         GroupStorage(
@@ -558,7 +745,8 @@ private suspend fun computeStorageStats(context: Context): StorageStats {
         dbSizeBytes = dbSize,
         mediaDirSize = mediaDirSize,
         recordingsDirSize = recordingsDirSize,
-        exportDirSize = exportDirSize
+        exportDirSize = exportDirSize,
+        totalDeviceBytes = totalDeviceBytes
     )
 }
 

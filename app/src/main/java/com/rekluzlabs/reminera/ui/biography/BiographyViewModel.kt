@@ -15,6 +15,7 @@ import com.rekluzlabs.reminera.export.BiographyGenerationProvider
 import com.rekluzlabs.reminera.ui.home.MediaAction
 import com.rekluzlabs.reminera.ui.home.MediaActionResult
 import com.rekluzlabs.reminera.util.DownloadHelper
+import com.rekluzlabs.reminera.util.ThumbnailHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -216,11 +217,23 @@ class BiographyViewModel(
         type: String,
         mediaUri: String?,
         textContent: String?,
-        recordedAt: Long
+        recordedAt: Long,
+        context: Context? = null
     ) {
         viewModelScope.launch {
             val bioId = _biographyId.value ?: return@launch
             val now = System.currentTimeMillis()
+
+            val thumbnailUri = if (type == "video" && mediaUri != null && context != null) {
+                withContext(Dispatchers.IO) {
+                    if (mediaUri.startsWith("http://") || mediaUri.startsWith("https://")) {
+                        ThumbnailHelper.generateLinkThumbnail(context, mediaUri)
+                    } else {
+                        ThumbnailHelper.generateVideoThumbnail(context, mediaUri)
+                    }
+                }
+            } else null
+
             repository.insertStoryEntry(
                 StoryEntryEntity(
                     id = UUID.randomUUID().toString(),
@@ -228,6 +241,7 @@ class BiographyViewModel(
                     contributedBy = contributedBy,
                     type = type,
                     mediaUri = mediaUri,
+                    thumbnailUri = thumbnailUri,
                     textContent = textContent,
                     recordedAt = recordedAt,
                     createdAt = now
@@ -238,7 +252,18 @@ class BiographyViewModel(
 
     fun deleteStoryEntry(entryId: String) {
         viewModelScope.launch {
+            val entry = repository.getStoryEntryById(entryId)
             repository.deleteStoryEntry(entryId)
+            if (entry != null) {
+                withContext(Dispatchers.IO) {
+                    try {
+                        entry.thumbnailUri?.let { uri ->
+                            val file = File(uri)
+                            if (file.exists()) file.delete()
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
         }
     }
 
@@ -291,12 +316,21 @@ class BiographyViewModel(
                                     val file = File(uri)
                                     if (file.exists()) file.delete()
                                 }
+                                entry.thumbnailUri?.let { uri ->
+                                    val file = File(uri)
+                                    if (file.exists()) file.delete()
+                                }
                             } catch (_: Exception) {}
                         }
                         _mediaActionResult.value = MediaActionResult.Success
                     } else {
                         _mediaActionResult.value = MediaActionResult.Error("Entry not found")
                     }
+                }
+
+                is MediaAction.EditUrl -> {
+                    repository.updateStoryEntryMedia(action.entryId, action.newUrl)
+                    _mediaActionResult.value = MediaActionResult.Success
                 }
 
                 is MediaAction.Move -> {

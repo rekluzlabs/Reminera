@@ -1,0 +1,16 @@
+- [x] Update Data Model & Database
+    - [x] Update `StoryEntryEntity.kt` with `thumbnailUri`
+    - [x] Update `StoryEntryDao.kt` with `updateThumbnailUri`
+    - [x] Increment `RemineraDatabase` version and add `MIGRATION_10_11`
+- [x] Implement `ThumbnailHelper.kt` utility
+- [x] Integrate Thumbnail Generation in ViewModels
+    - [x] Update `RemineraViewModel.kt`
+    - [x] Update `BiographyViewModel.kt`
+- [x] Update UI to Display Thumbnails
+    - [x] Update `RemineraHomeScreen.kt`
+    - [x] Update `BiographyScreen.kt`
+    - [x] Update `StoryEntryScreen.kt`
+- [x] Verification & Cleanup
+    - [x] Verify migration
+    - [x] Verify recording/importing video thumbnails
+    - [x] Verify file cleanup on deletion

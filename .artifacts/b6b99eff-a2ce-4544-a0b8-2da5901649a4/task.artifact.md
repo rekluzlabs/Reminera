@@ -1,0 +1,6 @@
+- [x] Implement YouTube embedding error detection in `BiographyFullScreenYouTube`
+- [x] Add fallback UI for embedding errors
+- [x] Refine detection logic to avoid false positives
+- [x] Investigate `Referer` header impact
+- [x] Cleanup excessive logging and `GlobalLayoutListener`
+- [ ] Verify with `dQw4w9WgXcQ` and original problematic videos

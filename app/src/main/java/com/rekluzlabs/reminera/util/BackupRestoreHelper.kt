@@ -47,8 +47,6 @@ object BackupRestoreHelper {
                 stagingDir.mkdirs()
 
                 try {
-                    val dbFile = context.getDatabasePath("reminera.db")
-
                     val allMediaFiles = mutableSetOf<String>()
 
                     val groups = database.familyGroupDao().getAllOrderedBySortOrderList()
@@ -71,9 +69,17 @@ object BackupRestoreHelper {
                     biographies.forEach { bio ->
                         bio.photoUri?.let { allMediaFiles.add(it) }
                     }
+                    stories.forEach { story ->
+                        story.mediaUri?.let { allMediaFiles.add(it) }
+                        story.thumbnailUri?.let { allMediaFiles.add(it) }
+                    }
+                    chapters.forEach { chapter ->
+                        chapter.renderedPdfPath?.let { allMediaFiles.add(it) }
+                    }
 
                     val backupData = JSONObject().apply {
                         put("app_version", "1.0")
+                        put("app_files_dir", context.filesDir.absolutePath)
                         put("backup_timestamp", System.currentTimeMillis())
                         put("database", serializeGroups(groups, entries, members, biographies, sections, stories, chapters, manifests))
                         put("media_files", JSONArray(allMediaFiles.filter { File(it).exists() }))
@@ -87,7 +93,7 @@ object BackupRestoreHelper {
                     var copied = 0
                     allMediaFiles.filter { File(it).exists() }.forEach { path ->
                         val srcFile = File(path)
-                        val relPath = getRelativeMediaPath(path)
+                        val relPath = getRelativeMediaPath(context, path)
                         if (relPath != null) {
                             val destFile = File(mediaStaging, relPath)
                             destFile.parentFile?.mkdirs()
@@ -160,6 +166,9 @@ object BackupRestoreHelper {
 
                     database.clearAllTables()
 
+                    val sourceFilesDir = backupData.optString("app_files_dir", "")
+                    val targetFilesDir = context.filesDir.absolutePath
+
                     restoreGroups(database, dbData.getJSONArray("family_groups"))
                     restoreMembers(database, dbData.getJSONArray("family_members"))
                     restoreEntries(database, dbData.getJSONArray("memory_entries"))
@@ -184,10 +193,121 @@ object BackupRestoreHelper {
                         }
                     }
 
+                    if (sourceFilesDir.isNotEmpty() && sourceFilesDir != targetFilesDir) {
+                        remapFilePathsInDatabase(database, sourceFilesDir, targetFilesDir)
+                    }
+
                     true
                 } finally {
                     stagingDir.deleteRecursively()
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
+    }
+
+    private suspend fun remapFilePathsInDatabase(
+        database: RemineraDatabase,
+        sourceDir: String,
+        targetDir: String
+    ) {
+        database.memoryEntryDao().getAllEntriesList().forEach { entry ->
+            var changed = false
+            val newLocal = if (entry.localFilePath.startsWith(sourceDir)) {
+                changed = true; entry.localFilePath.replace(sourceDir, targetDir)
+            } else entry.localFilePath
+            val newThumb = entry.thumbnailPath?.let {
+                if (it.startsWith(sourceDir)) { changed = true; it.replace(sourceDir, targetDir) } else it
+            }
+            val newSec = entry.secondaryMediaPath?.let {
+                if (it.startsWith(sourceDir)) { changed = true; it.replace(sourceDir, targetDir) } else it
+            }
+            if (changed) {
+                database.memoryEntryDao().insertDirect(entry.copy(
+                    localFilePath = newLocal,
+                    thumbnailPath = newThumb,
+                    secondaryMediaPath = newSec
+                ))
+            }
+        }
+
+        database.familyMemberDao().getAllMembersList().forEach { member ->
+            member.photoUri?.let { uri ->
+                if (uri.startsWith(sourceDir)) {
+                    database.familyMemberDao().insertDirect(member.copy(
+                        photoUri = uri.replace(sourceDir, targetDir)
+                    ))
+                }
+            }
+        }
+
+        database.biographyDao().getAllBiographiesList().forEach { bio ->
+            bio.photoUri?.let { uri ->
+                if (uri.startsWith(sourceDir)) {
+                    database.biographyDao().insertDirect(bio.copy(
+                        photoUri = uri.replace(sourceDir, targetDir)
+                    ))
+                }
+            }
+        }
+
+        database.storyEntryDao().getAllStoriesList().forEach { story ->
+            var changed = false
+            val newMedia = story.mediaUri?.let {
+                if (it.startsWith(sourceDir)) { changed = true; it.replace(sourceDir, targetDir) } else it
+            }
+            val newThumb = story.thumbnailUri?.let {
+                if (it.startsWith(sourceDir)) { changed = true; it.replace(sourceDir, targetDir) } else it
+            }
+            if (changed) {
+                database.storyEntryDao().insertDirect(story.copy(
+                    mediaUri = newMedia,
+                    thumbnailUri = newThumb
+                ))
+            }
+        }
+
+        database.chapterExportDao().getAllChaptersList().forEach { chapter ->
+            chapter.renderedPdfPath?.let { path ->
+                if (path.startsWith(sourceDir)) {
+                    database.chapterExportDao().upsert(chapter.copy(
+                        renderedPdfPath = path.replace(sourceDir, targetDir)
+                    ))
+                }
+            }
+        }
+    }
+
+    suspend fun clearAllData(context: Context): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val database = RemineraDatabase.getInstance(context)
+                database.clearAllTables()
+
+                val filesDir = context.filesDir
+                listOf("media", "recordings", "exports", "thumbnails").forEach { dirName ->
+                    val dir = File(filesDir, dirName)
+                    if (dir.exists()) {
+                        dir.deleteRecursively()
+                    }
+                }
+
+                listOf(
+                    "reminera_settings",
+                    "reminera_ai_consent",
+                    "reminera_backup_prefs",
+                    "reminera_prefs",
+                    "tutorial_prefs",
+                    "reminera_ai_prefs"
+                ).forEach { prefsName ->
+                    context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+                        .edit().clear().apply()
+                    context.deleteSharedPreferences(prefsName)
+                }
+
+                true
             } catch (e: Exception) {
                 e.printStackTrace()
                 false
@@ -259,6 +379,7 @@ object BackupRestoreHelper {
                     put("id", s.id); put("biographyId", s.biographyId)
                     put("contributedBy", s.contributedBy); put("type", s.type)
                     put("mediaUri", s.mediaUri ?: JSONObject.NULL)
+                    put("thumbnailUri", s.thumbnailUri ?: JSONObject.NULL)
                     put("textContent", s.textContent ?: JSONObject.NULL)
                     put("recordedAt", s.recordedAt); put("createdAt", s.createdAt)
                 }) }
@@ -375,6 +496,7 @@ object BackupRestoreHelper {
                     id = obj.getString("id"), biographyId = obj.getString("biographyId"),
                     contributedBy = obj.getString("contributedBy"), type = obj.getString("type"),
                     mediaUri = if (obj.isNull("mediaUri")) null else obj.getString("mediaUri"),
+                    thumbnailUri = if (obj.isNull("thumbnailUri")) null else obj.getString("thumbnailUri"),
                     textContent = if (obj.isNull("textContent")) null else obj.getString("textContent"),
                     recordedAt = obj.getLong("recordedAt"), createdAt = obj.getLong("createdAt")
                 )
@@ -427,21 +549,13 @@ object BackupRestoreHelper {
         }
     }
 
-    private fun getRelativeMediaPath(absolutePath: String): String? {
-        val filesDir = File("").absolutePath
-        if (absolutePath.contains("/media/")) {
-            val idx = absolutePath.indexOf("/media/")
-            return "media/" + absolutePath.substring(idx + "/media/".length)
+    private fun getRelativeMediaPath(context: Context, absolutePath: String): String? {
+        val baseDir = context.filesDir.absolutePath
+        return if (absolutePath.startsWith(baseDir)) {
+            absolutePath.removePrefix(baseDir).trimStart('/')
+        } else {
+            null
         }
-        if (absolutePath.contains("/recordings/")) {
-            val idx = absolutePath.indexOf("/recordings/")
-            return "recordings/" + absolutePath.substring(idx + "/recordings/".length)
-        }
-        if (absolutePath.contains("/exports/")) {
-            val idx = absolutePath.indexOf("/exports/")
-            return "exports/" + absolutePath.substring(idx + "/exports/".length)
-        }
-        return null
     }
 
     private fun zipDirectory(sourceDir: File, zipFile: File) {

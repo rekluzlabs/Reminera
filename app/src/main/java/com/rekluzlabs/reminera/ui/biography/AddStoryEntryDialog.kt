@@ -61,6 +61,7 @@ fun AddStoryEntryDialog(
     var selectedType by remember { mutableStateOf("text") }
     var textContent by remember { mutableStateOf("") }
     var mediaUri by remember { mutableStateOf<Uri?>(null) }
+    var linkUrl by remember { mutableStateOf("") }
     var isRecording by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
@@ -129,6 +130,7 @@ fun AddStoryEntryDialog(
         "text" -> textContent.isNotBlank()
         "audio" -> mediaUri != null || textContent.isNotBlank()
         "video" -> mediaUri != null
+        "link" -> linkUrl.isNotBlank()
         else -> false
     }
 
@@ -159,6 +161,10 @@ fun AddStoryEntryDialog(
                     }
                     EntryTypeChip("video", "Video", selectedType == "video") {
                         selectedType = "video"
+                        mediaUri = null
+                    }
+                    EntryTypeChip("link", "Link", selectedType == "link") {
+                        selectedType = "link"
                         mediaUri = null
                     }
                 }
@@ -337,6 +343,42 @@ fun AddStoryEntryDialog(
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
+
+                    "link" -> {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = linkUrl,
+                            onValueChange = { linkUrl = it },
+                            label = { Text("Paste a URL") },
+                            placeholder = { Text("https://example.com/video.mp4") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                cursorColor = MaterialTheme.colorScheme.primary,
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = textContent,
+                            onValueChange = { textContent = it },
+                            label = { Text("Caption (optional)") },
+                            maxLines = 3,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                cursorColor = MaterialTheme.colorScheme.primary,
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
         },
@@ -345,6 +387,10 @@ fun AddStoryEntryDialog(
                 onClick = {
                     if (selectedType == "text") {
                         onSave("text", textContent.trim().ifBlank { null }, null)
+                    } else if (selectedType == "link") {
+                        val url = linkUrl.trim()
+                        val detectedType = detectEntryType(url)
+                        onSave(detectedType, textContent.trim().ifBlank { null }, url)
                     } else {
                         val finalUri = mediaUri?.toString()
                         scope.launch {
@@ -376,6 +422,16 @@ fun AddStoryEntryDialog(
             }
         }
     )
+}
+
+private fun detectEntryType(url: String): String {
+    val lower = url.lowercase()
+    return when {
+        lower.contains("youtube.com") || lower.contains("youtu.be") || lower.contains("vimeo.com") -> "video"
+        lower.endsWith(".mp4") || lower.endsWith(".webm") || lower.endsWith(".mkv") -> "video"
+        lower.endsWith(".mp3") || lower.endsWith(".wav") || lower.endsWith(".m4a") || lower.endsWith(".ogg") || lower.endsWith(".aac") -> "audio"
+        else -> "video"
+    }
 }
 
 @Composable
