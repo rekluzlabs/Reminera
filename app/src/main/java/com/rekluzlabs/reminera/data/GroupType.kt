@@ -6,6 +6,6 @@ enum class GroupType(val label: String) {
     PARENTS("Parents"),
     SIBLINGS("Siblings"),
     CHILDREN("Children"),
-    FRIENDS("Friends"),
+    RELATIVES("Relatives"),
     CUSTOM("Custom Group")
 }

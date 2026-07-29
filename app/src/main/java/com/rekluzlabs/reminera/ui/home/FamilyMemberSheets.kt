@@ -70,6 +70,7 @@ fun AddFamilyMemberSheet(
     val roles = remember(groupType) { defaultRolesForGroupType(groupType) }
     var name by remember { mutableStateOf("") }
     var selectedRole by remember { mutableStateOf<MemberRole?>(null) }
+    var customRoleText by remember { mutableStateOf("") }
     var birthDate by remember { mutableStateOf<Long?>(null) }
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var editingPhotoUri by remember { mutableStateOf<Uri?>(null) }
@@ -84,7 +85,7 @@ fun AddFamilyMemberSheet(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri -> editingPhotoUri = uri }
 
-    val isValid = name.isNotBlank() && selectedRole != null
+    val isValid = name.isNotBlank() && (selectedRole != null && (selectedRole!!.key != "CUSTOM" || customRoleText.isNotBlank()))
 
     ModalBottomSheet(
         onDismissRequest = { if (editingPhotoUri == null) onDismiss() },
@@ -158,7 +159,10 @@ fun AddFamilyMemberSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 3.dp)
-                        .clickable { selectedRole = role }
+                        .clickable {
+                            selectedRole = role
+                            if (role.key != "CUSTOM") customRoleText = ""
+                        }
                 ) {
                     Row(
                         modifier = Modifier.padding(14.dp),
@@ -180,6 +184,27 @@ fun AddFamilyMemberSheet(
                         )
                     }
                 }
+            }
+
+            if (selectedRole?.key == "CUSTOM") {
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = customRoleText,
+                    onValueChange = { customRoleText = it },
+                    label = { Text("Custom relationship *") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -250,9 +275,10 @@ fun AddFamilyMemberSheet(
             Button(
                 onClick = {
                     if (isValid) {
+                        val roleKey = if (selectedRole!!.key == "CUSTOM") customRoleText.trim() else selectedRole!!.key
                         onSave(
                             name.trim(),
-                            selectedRole!!.key,
+                            roleKey,
                             birthDate,
                             photoUri?.toString()
                         )
@@ -328,7 +354,9 @@ fun EditFamilyMemberSheet(
 ) {
     val roles = remember(groupType) { defaultRolesForGroupType(groupType) }
     var name by remember { mutableStateOf(member.name) }
-    var selectedRole by remember { mutableStateOf(roles.find { it.key == member.role } ?: roles.firstOrNull()) }
+    val matchedRole = roles.find { it.key == member.role }
+    var selectedRole by remember { mutableStateOf(matchedRole ?: roles.find { it.key == "CUSTOM" }) }
+    var customRoleText by remember { mutableStateOf(if (matchedRole == null) member.role else "") }
     var birthDate by remember { mutableStateOf<Long?>(member.birthDate) }
     var photoUri by remember { mutableStateOf<Uri?>(member.photoUri?.let { Uri.parse(it) }) }
     var editingPhotoUri by remember { mutableStateOf<Uri?>(null) }
@@ -343,7 +371,7 @@ fun EditFamilyMemberSheet(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri -> editingPhotoUri = uri }
 
-    val isValid = name.isNotBlank() && selectedRole != null
+    val isValid = name.isNotBlank() && (selectedRole != null && (selectedRole!!.key != "CUSTOM" || customRoleText.isNotBlank()))
 
     ModalBottomSheet(
         onDismissRequest = { if (editingPhotoUri == null) onDismiss() },
@@ -417,7 +445,10 @@ fun EditFamilyMemberSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 3.dp)
-                        .clickable { selectedRole = role }
+                        .clickable {
+                            selectedRole = role
+                            if (role.key != "CUSTOM") customRoleText = ""
+                        }
                 ) {
                     Row(
                         modifier = Modifier.padding(14.dp),
@@ -439,6 +470,27 @@ fun EditFamilyMemberSheet(
                         )
                     }
                 }
+            }
+
+            if (selectedRole?.key == "CUSTOM") {
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = customRoleText,
+                    onValueChange = { customRoleText = it },
+                    label = { Text("Custom relationship *") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -510,9 +562,10 @@ fun EditFamilyMemberSheet(
             Button(
                 onClick = {
                     if (isValid) {
+                        val roleKey = if (selectedRole!!.key == "CUSTOM") customRoleText.trim() else selectedRole!!.key
                         onSave(
                             name.trim(),
-                            selectedRole!!.key,
+                            roleKey,
                             birthDate,
                             if (photoUri.toString() != member.photoUri) photoUri?.toString() else null
                         )

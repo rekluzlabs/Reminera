@@ -19,20 +19,31 @@ fun defaultRolesForGroupType(groupType: String): List<MemberRole> {
         )
         "PARENTS" -> listOf(
             MemberRole("FATHER", "Father"),
-            MemberRole("MOTHER", "Mother")
+            MemberRole("MOTHER", "Mother"),
+            MemberRole("CUSTOM", "Custom")
         )
         "SIBLINGS" -> listOf(
             MemberRole("BROTHER", "Brother"),
-            MemberRole("SISTER", "Sister")
+            MemberRole("SISTER", "Sister"),
+            MemberRole("CUSTOM", "Custom")
         )
         "CHILDREN" -> listOf(
             MemberRole("CHILD_1", "Child 1"),
             MemberRole("CHILD_2", "Child 2"),
             MemberRole("CHILD_3", "Child 3"),
             MemberRole("CHILD_4", "Child 4"),
-            MemberRole("CHILD_5", "Child 5")
+            MemberRole("CHILD_5", "Child 5"),
+            MemberRole("CUSTOM", "Custom")
         )
         "FRIENDS" -> emptyList()
+        "RELATIVES" -> listOf(
+            MemberRole("UNCLE", "Uncle"),
+            MemberRole("AUNT", "Aunt"),
+            MemberRole("COUSIN", "Cousin"),
+            MemberRole("NEPHEW", "Nephew"),
+            MemberRole("NIECE", "Niece"),
+            MemberRole("CUSTOM", "Custom")
+        )
         "CUSTOM" -> emptyList()
         else -> emptyList()
     }

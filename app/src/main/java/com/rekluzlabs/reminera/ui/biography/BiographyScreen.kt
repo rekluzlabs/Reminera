@@ -956,7 +956,7 @@ ${text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("
                                                 file
                                             )
                                             val intent = Intent(Intent.ACTION_SEND).apply {
-                                                setDataAndType(uri, "text/plain")
+                                                type = "text/plain"
                                                 putExtra(Intent.EXTRA_STREAM, uri)
                                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             }

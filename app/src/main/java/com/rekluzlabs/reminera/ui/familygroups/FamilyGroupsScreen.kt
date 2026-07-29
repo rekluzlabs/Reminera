@@ -544,6 +544,7 @@ private fun iconForGroupType(groupType: String): ImageVector {
         "SIBLINGS" -> Icons.Default.Diversity3
         "CHILDREN" -> Icons.Default.ChildCare
         "FRIENDS" -> Icons.Default.Celebration
+        "RELATIVES" -> Icons.Default.Groups
         else -> Icons.Default.Groups
     }
 }

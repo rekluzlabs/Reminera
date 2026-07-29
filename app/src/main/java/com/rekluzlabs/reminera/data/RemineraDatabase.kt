@@ -19,7 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ChapterExportEntity::class,
         BookExportManifestEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -106,6 +106,12 @@ abstract class RemineraDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("UPDATE family_groups SET groupType = 'RELATIVES', name = 'Relatives' WHERE groupType = 'FRIENDS'")
+            }
+        }
+
         fun getInstance(context: Context): RemineraDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -113,7 +119,7 @@ abstract class RemineraDatabase : RoomDatabase() {
                     RemineraDatabase::class.java,
                     "reminera.db"
                 )
-                    .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                    .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance

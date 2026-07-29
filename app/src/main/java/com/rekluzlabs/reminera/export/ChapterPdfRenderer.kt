@@ -51,6 +51,7 @@ object ChapterPdfRenderer {
 
             webView = WebView(context).apply {
                 setBackgroundColor(Color.WHITE)
+                setLayerType(View.LAYER_TYPE_SOFTWARE, null)
             }
 
             if (hostView != null) {
@@ -69,29 +70,16 @@ object ChapterPdfRenderer {
                 webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
             }
 
-            @Suppress("DEPRECATION")
-            val w = webView
-            val picture = suspendCancellableCoroutine { cont ->
-                w.viewTreeObserver.addOnPreDrawListener(
-                    object : android.view.ViewTreeObserver.OnPreDrawListener {
-                        var attempts = 0
-                        override fun onPreDraw(): Boolean {
-                            attempts++
-                            if (attempts >= 3) {
-                                w.viewTreeObserver.removeOnPreDrawListener(this)
-                                if (cont.isActive) cont.resume(w.capturePicture())
-                            }
-                            return true
-                        }
-                    }
-                )
-            }
+            webView.measure(
+                View.MeasureSpec.makeMeasureSpec(contentWidth, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            )
+            webView.layout(0, 0, contentWidth, webView.measuredHeight)
 
-            if (picture == null || picture.width <= 0 || picture.height <= 0) {
-                return@withContext RenderResult.Failure("WebView produced empty picture (${picture?.width}x${picture?.height})")
+            val contentHeight = webView.measuredHeight
+            if (contentHeight <= 0) {
+                return@withContext RenderResult.Failure("WebView produced zero-height content")
             }
-
-            val contentHeight = picture.height
 
             val pdfDocument = PdfDocument()
 
@@ -109,9 +97,10 @@ object ChapterPdfRenderer {
                 canvas.save()
                 canvas.clipRect(0f, 0f, contentWidth.toFloat(), srcHeight.toFloat())
                 canvas.translate(0f, -srcY.toFloat())
-                picture.draw(canvas)
-                canvas.restore()
 
+                webView.draw(canvas)
+
+                canvas.restore()
                 pdfDocument.finishPage(page)
             }
 
