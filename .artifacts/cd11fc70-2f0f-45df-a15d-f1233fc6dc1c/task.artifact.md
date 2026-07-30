@@ -1,6 +1,0 @@
-- [x] Restore Referer header in `BiographyScreen.kt`
-- [x] Enhance error detection JS (log text, stricter check)
-- [/] Sequential Verification:
-    - [ ] Step 1: Healthy video `mPHhwz71Lnk` test (Referer fix check)
-    - [ ] Step 2: Restricted video `XsoHj5UNoWo` test (Diagnostic log check)
-    - [ ] Step 3: Regression (Back button, close icon)

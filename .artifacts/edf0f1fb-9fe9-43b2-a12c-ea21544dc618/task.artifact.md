@@ -1,5 +1,0 @@
-- [x] Update `BiographyScreen.kt` with optimized video Intent flags
-    - [x] Add flags to YouTube intent
-    - [x] Add flags to fallback browser intent
-    - [x] Add flags to Vimeo intent
-- [x] Verify changes (Build/Lint check)
