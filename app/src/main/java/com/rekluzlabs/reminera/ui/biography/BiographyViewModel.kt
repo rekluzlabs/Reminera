@@ -1,6 +1,7 @@
 package com.rekluzlabs.reminera.ui.biography
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -224,15 +225,27 @@ class BiographyViewModel(
             val bioId = _biographyId.value ?: return@launch
             val now = System.currentTimeMillis()
 
-            val thumbnailUri = if (type == "video" && mediaUri != null && context != null) {
-                withContext(Dispatchers.IO) {
-                    if (mediaUri.startsWith("http://") || mediaUri.startsWith("https://")) {
-                        ThumbnailHelper.generateLinkThumbnail(context, mediaUri)
-                    } else {
-                        ThumbnailHelper.generateVideoThumbnail(context, mediaUri)
+            val thumbnailUri = when {
+                type == "video" && mediaUri != null && context != null -> {
+                    withContext(Dispatchers.IO) {
+                        if (mediaUri.startsWith("http://") || mediaUri.startsWith("https://")) {
+                            ThumbnailHelper.generateLinkThumbnail(context, mediaUri)
+                        } else {
+                            ThumbnailHelper.generateVideoThumbnail(context, mediaUri)
+                        }
                     }
                 }
-            } else null
+                type == "audio" && mediaUri != null && context != null -> {
+                    withContext(Dispatchers.IO) {
+                        ThumbnailHelper.generateAudioThumbnail(context)
+                    }
+                }
+                else -> null
+            }
+
+            val nextSortOrder = withContext(Dispatchers.IO) {
+                (repository.getStoryEntriesByBiographyId(bioId).firstOrNull()?.size ?: 0)
+            }
 
             repository.insertStoryEntry(
                 StoryEntryEntity(
@@ -244,7 +257,8 @@ class BiographyViewModel(
                     thumbnailUri = thumbnailUri,
                     textContent = textContent,
                     recordedAt = recordedAt,
-                    createdAt = now
+                    createdAt = now,
+                    sortOrder = nextSortOrder
                 )
             )
         }
@@ -264,6 +278,35 @@ class BiographyViewModel(
                     } catch (_: Exception) {}
                 }
             }
+        }
+    }
+
+    fun updateStoryEntry(
+        entryId: String,
+        contributedBy: String? = null,
+        textContent: String? = null,
+        recordedAt: Long? = null
+    ) {
+        viewModelScope.launch {
+            contributedBy?.let { repository.updateStoryEntryContributedBy(entryId, it) }
+            recordedAt?.let { repository.updateStoryEntryRecordedAt(entryId, it) }
+            textContent?.let { repository.updateStoryEntryText(entryId, it) }
+        }
+    }
+
+    fun moveStoryEntry(entryId: String, newSortOrder: Int) {
+        viewModelScope.launch {
+            repository.updateStoryEntrySortOrder(entryId, newSortOrder)
+        }
+    }
+
+    fun swapStoryEntries(fromId: String, toId: String) {
+        viewModelScope.launch {
+            val entries = _uiState.value.storyEntries
+            val from = entries.find { it.id == fromId } ?: return@launch
+            val to = entries.find { it.id == toId } ?: return@launch
+            repository.updateStoryEntrySortOrder(fromId, to.sortOrder)
+            repository.updateStoryEntrySortOrder(toId, from.sortOrder)
         }
     }
 

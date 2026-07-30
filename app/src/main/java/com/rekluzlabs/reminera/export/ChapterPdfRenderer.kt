@@ -2,12 +2,16 @@ package com.rekluzlabs.reminera.export
 
 import android.app.Activity
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -41,6 +45,10 @@ object ChapterPdfRenderer {
         outputDir.mkdirs()
         val outputFile = File(outputDir, "chapter_${memberId}.pdf")
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            WebView.enableSlowWholeDocumentDraw()
+        }
+
         val activity = context as? Activity
         val hostView = activity?.windowContentView()
 
@@ -51,7 +59,6 @@ object ChapterPdfRenderer {
 
             webView = WebView(context).apply {
                 setBackgroundColor(Color.WHITE)
-                setLayerType(View.LAYER_TYPE_SOFTWARE, null)
             }
 
             if (hostView != null) {
@@ -70,38 +77,61 @@ object ChapterPdfRenderer {
                 webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
             }
 
-            webView.measure(
-                View.MeasureSpec.makeMeasureSpec(contentWidth, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-            )
-            webView.layout(0, 0, contentWidth, webView.measuredHeight)
+            val wv = webView ?: return@withContext RenderResult.Failure("WebView not created")
+            val contentHeight = suspendCancellableCoroutine<Int> { cont ->
+                var attempts = 0
+                wv.viewTreeObserver.addOnPreDrawListener(
+                    object : ViewTreeObserver.OnPreDrawListener {
+                        override fun onPreDraw(): Boolean {
+                            attempts++
+                            if (attempts >= 3) {
+                                wv.viewTreeObserver.removeOnPreDrawListener(this)
+                                wv.measure(
+                                    View.MeasureSpec.makeMeasureSpec(contentWidth, View.MeasureSpec.EXACTLY),
+                                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                                )
+                                wv.layout(0, 0, contentWidth, wv.measuredHeight)
+                                val h = maxOf(wv.measuredHeight, 1)
+                                if (cont.isActive) cont.resume(h)
+                            }
+                            return true
+                        }
+                    }
+                )
+            }
 
-            val contentHeight = webView.measuredHeight
             if (contentHeight <= 0) {
                 return@withContext RenderResult.Failure("WebView produced zero-height content")
             }
 
+            val pageCount = maxOf(1, (contentHeight + pageContentHeight - 1) / pageContentHeight)
             val pdfDocument = PdfDocument()
 
-            for (pageIndex in 0 until maxOf(1, (contentHeight + pageContentHeight - 1) / pageContentHeight)) {
+            for (pageIndex in 0 until pageCount) {
+                val srcY = pageIndex * pageContentHeight
+                val srcHeight = minOf(pageContentHeight, contentHeight - srcY)
+
+                wv.scrollTo(0, srcY)
+
+                val pageBitmap = Bitmap.createBitmap(A4_WIDTH_PX, A4_HEIGHT_PX, Bitmap.Config.ARGB_8888)
+                val pageCanvas = Canvas(pageBitmap)
+                pageCanvas.drawColor(Color.WHITE)
+
+                val wvBitmap = Bitmap.createBitmap(contentWidth, srcHeight, Bitmap.Config.ARGB_8888)
+                val wvCanvas = Canvas(wvBitmap)
+                wvCanvas.drawColor(Color.WHITE)
+                wv.draw(wvCanvas)
+                pageCanvas.drawBitmap(wvBitmap, MARGIN_PX.toFloat(), MARGIN_PX.toFloat(), null)
+                wvBitmap.recycle()
+
                 val pageInfo = PdfDocument.PageInfo.Builder(
                     A4_WIDTH_PX, A4_HEIGHT_PX, pageIndex + 1
                 ).create()
                 val page = pdfDocument.startPage(pageInfo)
-
-                val canvas = page.canvas
-                canvas.translate(MARGIN_PX.toFloat(), MARGIN_PX.toFloat())
-
-                val srcY = pageIndex * pageContentHeight
-                val srcHeight = minOf(pageContentHeight, contentHeight - srcY)
-                canvas.save()
-                canvas.clipRect(0f, 0f, contentWidth.toFloat(), srcHeight.toFloat())
-                canvas.translate(0f, -srcY.toFloat())
-
-                webView.draw(canvas)
-
-                canvas.restore()
+                page.canvas.drawBitmap(pageBitmap, 0f, 0f, null)
                 pdfDocument.finishPage(page)
+
+                pageBitmap.recycle()
             }
 
             outputFile.outputStream().use { out ->

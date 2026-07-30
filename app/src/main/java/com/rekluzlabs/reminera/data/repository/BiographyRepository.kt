@@ -46,6 +46,15 @@ class BiographyRepository(
     suspend fun updateStoryEntryText(id: String, textContent: String?) =
         storyEntryDao.updateTextContent(id, textContent)
 
+    suspend fun updateStoryEntryContributedBy(id: String, contributedBy: String) =
+        storyEntryDao.updateContributedBy(id, contributedBy)
+
+    suspend fun updateStoryEntryRecordedAt(id: String, recordedAt: Long) =
+        storyEntryDao.updateRecordedAt(id, recordedAt)
+
+    suspend fun updateStoryEntrySortOrder(id: String, sortOrder: Int) =
+        storyEntryDao.updateSortOrder(id, sortOrder)
+
     suspend fun getStoryEntryById(id: String): StoryEntryEntity? =
         storyEntryDao.getById(id)
 }

@@ -14,6 +14,34 @@ import java.util.UUID
 object ThumbnailHelper {
     private const val TAG = "ThumbnailHelper"
 
+    fun generateAudioThumbnail(context: Context): String? {
+        return try {
+            val bitmap = Bitmap.createBitmap(200, 200, Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bitmap)
+            val paint = android.graphics.Paint().apply {
+                color = android.graphics.Color.argb(30, 100, 180, 255)
+                style = android.graphics.Paint.Style.FILL
+            }
+            canvas.drawRoundRect(0f, 0f, 200f, 200f, 24f, 24f, paint)
+            paint.color = android.graphics.Color.WHITE
+            paint.strokeWidth = 6f
+            paint.style = android.graphics.Paint.Style.STROKE
+            paint.isAntiAlias = true
+
+            val cx = 100f; val cy = 100f
+            canvas.drawCircle(cx, cy, 30f, paint)
+            paint.strokeWidth = 4f
+            canvas.drawLine(cx + 20f, cy - 25f, cx + 20f, cy + 25f, paint)
+            canvas.drawLine(cx + 30f, cy - 35f, cx + 30f, cy + 35f, paint)
+            canvas.drawLine(cx + 40f, cy - 20f, cx + 40f, cy + 20f, paint)
+
+            saveThumbnail(context, bitmap)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error generating audio thumbnail", e)
+            null
+        }
+    }
+
     /**
      * Generates a thumbnail for a video and saves it to internal storage.
      * Returns the absolute path to the generated thumbnail file, or null if it fails.

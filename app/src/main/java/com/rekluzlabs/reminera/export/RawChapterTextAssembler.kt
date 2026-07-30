@@ -3,6 +3,7 @@ package com.rekluzlabs.reminera.export
 import com.rekluzlabs.reminera.data.BiographySectionEntity
 import com.rekluzlabs.reminera.data.FamilyMemberEntity
 import com.rekluzlabs.reminera.data.StoryEntryEntity
+import org.json.JSONObject
 
 object RawChapterTextAssembler {
 
@@ -25,7 +26,7 @@ object RawChapterTextAssembler {
         }
 
         for (story in stories) {
-            if (story.type == "text" && !story.textContent.isNullOrBlank()) {
+            if (!story.textContent.isNullOrBlank()) {
                 blocks.add(story.textContent.trim())
             }
         }
@@ -36,18 +37,8 @@ object RawChapterTextAssembler {
     private fun extractSectionText(section: BiographySectionEntity): String {
         if (section.fieldsJson.isBlank()) return ""
         return try {
-            val cleaned = section.fieldsJson.trim().removeSurrounding("{", "}")
-            if (cleaned.isBlank()) return ""
-            val values = mutableListOf<String>()
-            cleaned.split(",").forEach { pair ->
-                val parts = pair.split(":", limit = 2)
-                if (parts.size == 2) {
-                    val value = parts[1].trim().removeSurrounding("\"")
-                    if (value.isNotBlank()) {
-                        values.add(value)
-                    }
-                }
-            }
+            val json = JSONObject(section.fieldsJson)
+            val values = json.keys().asSequence().map { json.optString(it, "") }.filter { it.isNotBlank() }.toList()
             values.joinToString("\n\n")
         } catch (_: Exception) {
             ""

@@ -21,6 +21,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.rekluzlabs.reminera.data.FamilyMemberEntity
 import com.rekluzlabs.reminera.data.RemineraDatabase
 import com.rekluzlabs.reminera.data.repository.BiographyRepository
 import com.rekluzlabs.reminera.data.repository.ChapterExportRepository
@@ -40,6 +41,7 @@ import com.rekluzlabs.reminera.ui.recording.AudioRecordScreen
 import com.rekluzlabs.reminera.ui.recording.VideoRecordScreen
 import com.rekluzlabs.reminera.ui.settings.AiSettingsScreen
 import com.rekluzlabs.reminera.ui.settings.BackupRestoreScreen
+import com.rekluzlabs.reminera.ui.settings.MemberBackupScreen
 import com.rekluzlabs.reminera.ui.settings.SettingsScreen
 import com.rekluzlabs.reminera.ui.settings.StorageUsageScreen
 import com.rekluzlabs.reminera.ui.settings.ThemeSettingsScreen
@@ -104,6 +106,10 @@ class MainActivity : ComponentActivity() {
                             BackupRestoreScreen(
                                 onBack = { settingsSection = "main" }
                             )
+                        } else if (settingsSection == "member_backup") {
+                            MemberBackupScreen(
+                                onBack = { settingsSection = "main" }
+                            )
                         } else if (settingsSection == "storage") {
                             StorageUsageScreen(
                                 onBack = { settingsSection = "main" },
@@ -115,6 +121,7 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToThemes = { settingsSection = "themes" },
                                 onNavigateToAi = { settingsSection = "ai" },
                                 onNavigateToBackup = { settingsSection = "backup" },
+                                onNavigateToMemberBackup = { settingsSection = "member_backup" },
                                 onNavigateToStorage = { settingsSection = "storage" },
                                 onBack = { showSettings = false }
                             )
@@ -222,13 +229,14 @@ private fun RemineraNavHost(
             BiographyScreen(
                 personId = personId,
                 memberName = member?.name ?: "Family Member",
+                memberPhotoUri = member?.photoUri,
                 viewModel = bioViewModel,
                 remineraViewModel = viewModel,
                 onBack = { navController.popBackStack() },
                 onSettingsClick = onSettingsClick,
                 onNavigateToAiSettings = onNavigateToAiSettings,
-                onNavigateToStory = { biographyId ->
-                    navController.navigate("story/$biographyId")
+                onNavigateToStory = { personId, biographyId ->
+                    navController.navigate("story/$personId/$biographyId")
                 },
                 onAddMemory = {
                     navController.navigate("member/${groupId}/${personId}")
@@ -237,17 +245,23 @@ private fun RemineraNavHost(
         }
 
         composable(
-            route = "story/{biographyId}",
+            route = "story/{personId}/{biographyId}",
             arguments = listOf(
+                navArgument("personId") { type = NavType.LongType },
                 navArgument("biographyId") { type = NavType.StringType }
             )
         ) { backStackEntry ->
+            val personId = backStackEntry.arguments?.getLong("personId") ?: return@composable
             val biographyId = backStackEntry.arguments?.getString("biographyId") ?: return@composable
             val context = LocalContext.current
             val database = remember { RemineraDatabase.getInstance(context) }
             val bioRepo = remember { BiographyRepository(database.biographyDao(), database.biographySectionDao(), database.storyEntryDao()) }
+            var member by remember { mutableStateOf<FamilyMemberEntity?>(null) }
+            LaunchedEffect(personId) {
+                member = database.familyMemberDao().getMemberById(personId)
+            }
             val bioViewModel: BiographyViewModel = viewModel(
-                factory = BiographyViewModelFactory(-1L, null, bioRepo)
+                factory = BiographyViewModelFactory(personId, member, bioRepo)
             )
             StoryEntryScreen(
                 biographyId = biographyId,

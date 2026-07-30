@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -33,6 +34,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -141,12 +144,13 @@ import java.util.TimeZone
 fun BiographyScreen(
     personId: Long,
     memberName: String,
+    memberPhotoUri: String? = null,
     viewModel: BiographyViewModel,
     remineraViewModel: RemineraViewModel? = null,
     onBack: () -> Unit,
     onSettingsClick: () -> Unit = {},
     onNavigateToAiSettings: () -> Unit = {},
-    onNavigateToStory: (biographyId: String) -> Unit = {},
+    onNavigateToStory: (personId: Long, biographyId: String) -> Unit = { _, _ -> },
     onAddMemory: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -347,6 +351,7 @@ fun BiographyScreen(
         onDispose { if (isRecordingAudio) audioRecorder.stop() }
     }
 
+    var showMediaGallery by remember { mutableStateOf(false) }
     var showMediaOptions by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var renameEntryId by remember { mutableStateOf<String?>(null) }
@@ -368,8 +373,10 @@ fun BiographyScreen(
         }
     }
 
-    val bioPhoto = remember(biography?.photoUri) {
-        biography?.photoUri?.let { uriStr ->
+    val effectivePhotoUri = biography?.photoUri ?: memberPhotoUri
+
+    val bioPhoto = remember(effectivePhotoUri) {
+        effectivePhotoUri?.let { uriStr ->
             try {
                 com.rekluzlabs.reminera.util.ImageUtils.loadBitmapWithExifOrientation(context, uriStr)
             } catch (_: Exception) { null }
@@ -497,7 +504,7 @@ fun BiographyScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Media gallery section
+            // Photos & Media card — tap to open full gallery
             Card(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(
@@ -506,282 +513,36 @@ fun BiographyScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
+                    .clickable { showMediaGallery = true }
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Photos & Media",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Profile photo (large)
-                    if (bioPhoto != null) {
-                        Image(
-                            bitmap = bioPhoto.asImageBitmap(),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(220.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { biography?.photoUri?.let { fullScreenPhotoUri = it } },
-                            contentScale = ContentScale.Crop
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-
-                    // Media entries gallery
-                    if (mediaEntries.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Additional media",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
+                            text = "Photos & Media",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 16.sp
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            mediaEntries.forEach { entry ->
-                                val dismissState = rememberSwipeToDismissBoxState(
-                                    confirmValueChange = { value ->
-                                        when (value) {
-                                            SwipeToDismissBoxValue.StartToEnd -> {
-                                                storyEntryToDelete = entry
-                                                false // Don't dismiss immediately
-                                            }
-                                            SwipeToDismissBoxValue.EndToStart -> {
-                                                storyEntryToDownload = entry
-                                                false // Don't dismiss immediately
-                                            }
-                                            else -> false
-                                        }
-                                    }
-                                )
-
-                                SwipeToDismissBox(
-                                    state = dismissState,
-                                    backgroundContent = {
-                                        val color = when (dismissState.dismissDirection) {
-                                            SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.errorContainer
-                                            SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.primaryContainer
-                                            else -> Color.Transparent
-                                        }
-                                        val alignment = when (dismissState.dismissDirection) {
-                                            SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
-                                            SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
-                                            else -> Alignment.Center
-                                        }
-                                        val icon = when (dismissState.dismissDirection) {
-                                            SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Delete
-                                            SwipeToDismissBoxValue.EndToStart -> Icons.Default.Download
-                                            else -> null
-                                        }
-
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(color)
-                                                .padding(horizontal = 16.dp),
-                                            contentAlignment = alignment
-                                        ) {
-                                            icon?.let {
-                                                Icon(
-                                                    imageVector = it,
-                                                    contentDescription = null,
-                                                    tint = if (dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd)
-                                                        MaterialTheme.colorScheme.error
-                                                    else
-                                                        MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                        }
-                                    }
-                                ) {
-                                    MediaEntryRow(
-                                        entry = entry,
-                                        context = context,
-                                        onMediaClick = { mediaEntry ->
-                                            when (mediaEntry.type) {
-                                                "photo" -> mediaEntry.mediaUri?.let {
-                                                    fullScreenPhotoUri = it
-                                                    fullScreenEntryId = mediaEntry.id
-                                                }
-                                                "video" -> mediaEntry.mediaUri?.let { uri ->
-                                                    val isUrl = uri.startsWith("http://") || uri.startsWith("https://")
-                                                    if (isUrl) {
-                                                        if (uri.contains("youtube.com") || uri.contains("youtu.be")) {
-                                                            val videoId = ThumbnailHelper.extractYouTubeVideoId(uri)
-                                                            if (videoId != null) {
-                                                                val appIntent = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$videoId"))
-                                                                    .setPackage("com.google.android.youtube")
-
-                                                                val webIntent = Intent(Intent.ACTION_VIEW,
-                                                                    Uri.parse("https://www.youtube.com/watch?v=$videoId"))
-
-                                                                try {
-                                                                    context.startActivity(appIntent)
-                                                                } catch (e: Exception) {
-                                                                    context.startActivity(webIntent)
-                                                                }
-                                                            }
-                                                        } else if (uri.contains("vimeo.com")) {
-                                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(uri)).apply {
-                                                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_DOCUMENT)
-                                                                addFlags(android.content.Intent.FLAG_ACTIVITY_NO_HISTORY)
-                                                            }
-                                                            context.startActivity(intent)
-                                                        } else {
-                                                            fullScreenVideoUri = uri
-                                                        }
-                                                    } else {
-                                                        val file = File(uri)
-                                                        if (file.exists()) {
-                                                            fullScreenVideoUri = uri
-                                                        }
-                                                    }
-                                                }
-                                                "audio" -> mediaEntry.mediaUri?.let { uri ->
-                                                    val isUrl = uri.startsWith("http://") || uri.startsWith("https://")
-                                                    if (isUrl) {
-                                                        fullScreenAudioUri = uri
-                                                    } else {
-                                                        val file = File(uri)
-                                                        if (file.exists()) {
-                                                            fullScreenAudioUri = uri
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        onRename = { mediaEntry ->
-                                            renameEntryId = mediaEntry.id
-                                            renameCurrentTitle = mediaEntry.textContent ?: mediaEntry.type.replaceFirstChar { it.uppercase() }
-                                            showRenameDialog = true
-                                        },
-                                        onMenuClick = { mediaEntry ->
-                                            val memberName = biography?.fullName ?: memberName
-                                            val entryUri = mediaEntry.mediaUri
-                                            mediaMenuState = MediaMenuState(
-                                                entryId = mediaEntry.id,
-                                                entryTitle = mediaEntry.textContent ?: mediaEntry.type.replaceFirstChar { it.uppercase() },
-                                                entryType = mediaEntry.type,
-                                                currentMemberName = memberName,
-                                                members = emptyList(),
-                                                linkUrl = if (entryUri != null && (entryUri.startsWith("http://") || entryUri.startsWith("https://"))) entryUri else null
-                                            )
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = if (mediaEntries.isNotEmpty())
+                                "${mediaEntries.size} item${if (mediaEntries.size == 1) "" else "s"}"
+                            else
+                                "No items yet",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp
+                        )
                     }
-
-                    // Add media buttons
-                    Text(
-                        text = "Import media",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = { mediaPhotoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Photo", fontSize = 12.sp)
-                        }
-                        OutlinedButton(
-                            onClick = { mediaVideoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)) },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Video", fontSize = 12.sp)
-                        }
-                        OutlinedButton(
-                            onClick = { mediaAudioPicker.launch(arrayOf("audio/*")) },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Audiotrack, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Audio", fontSize = 12.sp)
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Record media",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                val tempFile = File(context.cacheDir, "temp_video_${System.currentTimeMillis()}.mp4")
-                                val uri = FileProvider.getUriForFile(context, "com.rekluzlabs.reminera.fileprovider", tempFile)
-                                tempVideoCaptureUri = uri
-                                captureVideoLauncher.launch(uri)
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Record Video", fontSize = 12.sp)
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                if (isRecordingAudio) {
-                                    audioRecorder.stop()
-                                    isRecordingAudio = false
-                                } else {
-                                    startRecordingIfPermitted {
-                                        val tempFile = File(context.cacheDir, "temp_audio_${System.currentTimeMillis()}.m4a")
-                                        audioRecorder.start(tempFile)
-                                        isRecordingAudio = true
-                                        scope.launch {
-                                            val startTime = System.currentTimeMillis()
-                                            while (isRecordingAudio && isActive) {
-                                                recordingDuration = System.currentTimeMillis() - startTime
-                                                delay(100)
-                                            }
-                                            if (tempFile.exists()) {
-                                                val persistentUri = withContext(Dispatchers.IO) {
-                                                    copyUriToInternal(context, Uri.fromFile(tempFile), "m4a")
-                                                }
-                                                viewModel.addStoryEntry("You", "audio", persistentUri, null, System.currentTimeMillis(), context)
-                                            }
-                                        }
-                                    }
-                                }
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            colors = if (isRecordingAudio) ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.error
-                            ) else ButtonDefaults.outlinedButtonColors(),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = if (isRecordingAudio) Icons.Default.Pause else Icons.Default.Audiotrack,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                if (isRecordingAudio) "Stop (${recordingDuration / 1000}s)" else "Record Audio",
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
+                    Text(">", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 18.sp)
                 }
             }
 
@@ -870,19 +631,19 @@ fun BiographyScreen(
                             .height(1.dp)
                             .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
                         )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            TextButton(
-                                onClick = {
-                                    val text = chapterExport?.generatedBioText ?: return@TextButton
+                        var pendingPdfSave by remember { mutableStateOf(false) }
+                        var pendingTextSave by remember { mutableStateOf(false) }
+
+                        val pdfSaveLauncher = rememberLauncherForActivityResult(
+                            contract = ActivityResultContracts.CreateDocument("application/pdf")
+                        ) { uri ->
+                            if (uri != null && pendingPdfSave) {
+                                pendingPdfSave = false
+                                scope.launch {
                                     isExportingPdf = true
-                                    scope.launch {
-                                        try {
-                                            val html = """<!DOCTYPE html>
+                                    try {
+                                        val text = chapterExport?.generatedBioText ?: return@launch
+                                        val html = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
 body { padding: 40px; font-family: Georgia, serif; line-height: 1.8; font-size: 12pt; color: #000; }
 h1 { font-size: 22pt; margin-bottom: 20px; }
@@ -891,34 +652,66 @@ p { margin-bottom: 10px; }
 <h1>${biography?.fullName?.replace("&", "&amp;")?.replace("<", "&lt;")?.replace(">", "&gt;") ?: memberName}</h1>
 ${text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")}
 </body></html>"""
-                                            val result = withContext(Dispatchers.Main) {
-                                                ChapterPdfRenderer.renderChapter(
-                                                    context = context,
-                                                    memberId = personId,
-                                                    html = html,
-                                                    chapterTitle = "Chapter: ${biography?.fullName ?: memberName}"
-                                                )
-                                            }
-                                            if (result is ChapterPdfRenderer.RenderResult.Success) {
-                                                val uri = FileProvider.getUriForFile(
-                                                    context,
-                                                    "com.rekluzlabs.reminera.fileprovider",
-                                                    result.outputFile
-                                                )
-                                                val intent = Intent(Intent.ACTION_VIEW).apply {
-                                                    setDataAndType(uri, "application/pdf")
-                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                }
-                                                context.startActivity(intent)
-                                            } else {
-                                                val msg = (result as? ChapterPdfRenderer.RenderResult.Failure)?.error ?: "PDF generation failed"
-                                                snackbarHostState.showSnackbar(msg)
-                                            }
-                                        } catch (e: Exception) {
-                                            snackbarHostState.showSnackbar("PDF export failed: ${e.message}")
+                                        val result = withContext(Dispatchers.Main) {
+                                            ChapterPdfRenderer.renderChapter(
+                                                context = context,
+                                                memberId = personId,
+                                                html = html,
+                                                chapterTitle = "Chapter: ${biography?.fullName ?: memberName}"
+                                            )
                                         }
-                                        isExportingPdf = false
+                                        if (result is ChapterPdfRenderer.RenderResult.Success) {
+                                            withContext(Dispatchers.IO) {
+                                                context.contentResolver.openOutputStream(uri)?.use { output ->
+                                                    result.outputFile.inputStream().use { input -> input.copyTo(output) }
+                                                }
+                                            }
+                                            snackbarHostState.showSnackbar("PDF saved")
+                                        } else {
+                                            val msg = (result as? ChapterPdfRenderer.RenderResult.Failure)?.error ?: "PDF generation failed"
+                                            snackbarHostState.showSnackbar(msg)
+                                        }
+                                    } catch (e: Exception) {
+                                        snackbarHostState.showSnackbar("PDF export failed: ${e.message}")
                                     }
+                                    isExportingPdf = false
+                                }
+                            }
+                        }
+
+                        val textSaveLauncher = rememberLauncherForActivityResult(
+                            contract = ActivityResultContracts.CreateDocument("text/plain")
+                        ) { uri ->
+                            if (uri != null && pendingTextSave) {
+                                pendingTextSave = false
+                                scope.launch {
+                                    isExportingText = true
+                                    try {
+                                        val text = chapterExport?.generatedBioText ?: return@launch
+                                        withContext(Dispatchers.IO) {
+                                            context.contentResolver.openOutputStream(uri)?.use { output ->
+                                                output.write(text.toByteArray(Charsets.UTF_8))
+                                            }
+                                        }
+                                        snackbarHostState.showSnackbar("Text saved")
+                                    } catch (e: Exception) {
+                                        snackbarHostState.showSnackbar("Text export failed: ${e.message}")
+                                    }
+                                    isExportingText = false
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    pendingPdfSave = true
+                                    pdfSaveLauncher.launch("${biography?.fullName ?: memberName}_chapter.pdf")
                                 },
                                 enabled = !isExportingPdf
                             ) {
@@ -935,37 +728,12 @@ ${text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Export PDF", fontSize = 12.sp)
+                                Text("Save PDF", fontSize = 12.sp)
                             }
                             TextButton(
                                 onClick = {
-                                    val text = chapterExport?.generatedBioText ?: return@TextButton
-                                    isExportingText = true
-                                    scope.launch {
-                                        try {
-                                            val file = withContext(Dispatchers.IO) {
-                                                val outputDir = File(context.cacheDir, "chapter_exports")
-                                                outputDir.mkdirs()
-                                                val f = File(outputDir, "${biography?.fullName ?: memberName}_chapter.txt")
-                                                f.writeText(text)
-                                                f
-                                            }
-                                            val uri = FileProvider.getUriForFile(
-                                                context,
-                                                "com.rekluzlabs.reminera.fileprovider",
-                                                file
-                                            )
-                                            val intent = Intent(Intent.ACTION_SEND).apply {
-                                                type = "text/plain"
-                                                putExtra(Intent.EXTRA_STREAM, uri)
-                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            }
-                                            context.startActivity(Intent.createChooser(intent, "Share Chapter Text"))
-                                        } catch (e: Exception) {
-                                            snackbarHostState.showSnackbar("Text export failed: ${e.message}")
-                                        }
-                                        isExportingText = false
-                                    }
+                                    pendingTextSave = true
+                                    textSaveLauncher.launch("${biography?.fullName ?: memberName}_chapter.txt")
                                 },
                                 enabled = !isExportingText
                             ) {
@@ -982,7 +750,43 @@ ${text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Export Text", fontSize = 12.sp)
+                                Text("Save Text", fontSize = 12.sp)
+                            }
+                            TextButton(
+                                onClick = {
+                                    val text = chapterExport?.generatedBioText ?: return@TextButton
+                                    isExportingText = true
+                                    scope.launch {
+                                        try {
+                                            val file = withContext(Dispatchers.IO) {
+                                                val dir = File(context.cacheDir, "chapter_exports")
+                                                dir.mkdirs()
+                                                val f = File(dir, "${biography?.fullName ?: memberName}_chapter.txt")
+                                                f.writeText(text)
+                                                f
+                                            }
+                                            val uri = FileProvider.getUriForFile(context, "com.rekluzlabs.reminera.fileprovider", file)
+                                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_STREAM, uri)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            context.startActivity(Intent.createChooser(intent, "Share Chapter"))
+                                        } catch (e: Exception) {
+                                            snackbarHostState.showSnackbar("Share failed: ${e.message}")
+                                        }
+                                        isExportingText = false
+                                    }
+                                },
+                                enabled = !isExportingText
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudDownload,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Share", fontSize = 12.sp)
                             }
                         }
                     }
@@ -1221,7 +1025,7 @@ ${text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
                     .clickable {
-                        biography?.let { onNavigateToStory(it.id) }
+                        biography?.let { onNavigateToStory(personId, it.id) }
                     }
             ) {
                 Row(
@@ -1276,30 +1080,6 @@ ${text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("
             Icon(Icons.Default.Add, contentDescription = "Add")
         }
 
-
-        IconButton(
-            onClick = {
-                startCameraIfPermitted {
-                    val tempFile = File(context.cacheDir, "temp_photo_${System.currentTimeMillis()}.jpg")
-                    val uri = FileProvider.getUriForFile(context, "com.rekluzlabs.reminera.fileprovider", tempFile)
-                    tempPhotoCaptureUri = uri
-                    capturePhotoLauncher.launch(uri)
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(20.dp)
-                .navigationBarsPadding()
-                .size(48.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-        ) {
-            Icon(
-                imageVector = Icons.Default.CameraAlt,
-                contentDescription = "Change photo",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp)
-            )
-        }
 
         SnackbarHost(
             hostState = snackbarHostState,
@@ -1618,6 +1398,126 @@ ${text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("
                 },
                 onDismiss = { showImageEditor = null }
             )
+        }
+    }
+
+    if (showMediaGallery) {
+        BackHandler { showMediaGallery = false; if (isRecordingAudio) { audioRecorder.stop(); isRecordingAudio = false } }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { showMediaGallery = false; if (isRecordingAudio) { audioRecorder.stop(); isRecordingAudio = false } }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Text("Photos & Media", color = MaterialTheme.colorScheme.onSurface, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
+                }
+
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    if (bioPhoto != null) {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(12.dp))) {
+                                Image(
+                                    bitmap = bioPhoto.asImageBitmap(),
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize().clickable { effectivePhotoUri?.let { fullScreenPhotoUri = it; fullScreenEntryId = null } },
+                                    contentScale = ContentScale.Crop
+                                )
+                                IconButton(
+                                    onClick = { startCameraIfPermitted { val f = File(context.cacheDir, "temp_photo_${System.currentTimeMillis()}.jpg"); val uri = FileProvider.getUriForFile(context, "com.rekluzlabs.reminera.fileprovider", f); tempPhotoCaptureUri = uri; capturePhotoLauncher.launch(uri) } },
+                                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(40.dp).background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                                ) {
+                                    Icon(Icons.Default.CameraAlt, contentDescription = "Change photo", tint = Color.White, modifier = Modifier.size(20.dp))
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                    }
+
+                    if (mediaEntries.isNotEmpty()) {
+                        item { Text("Media (${mediaEntries.size})", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(vertical = 4.dp)) }
+                        items(mediaEntries, key = { e -> e.id }) { entry ->
+                            val swipeState = rememberSwipeToDismissBoxState(
+                                confirmValueChange = { value ->
+                                    when (value) {
+                                        SwipeToDismissBoxValue.StartToEnd -> { storyEntryToDelete = entry; false }
+                                        SwipeToDismissBoxValue.EndToStart -> { storyEntryToDownload = entry; false }
+                                        else -> false
+                                    }
+                                }
+                            )
+                            SwipeToDismissBox(
+                                state = swipeState,
+                                backgroundContent = {
+                                    val dir = swipeState.dismissDirection
+                                    val color = when (dir) {
+                                        SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.errorContainer
+                                        SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.primaryContainer
+                                        else -> Color.Transparent
+                                    }
+                                    Box(Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp)).background(color).padding(horizontal = 16.dp), contentAlignment = if (dir == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd) {
+                                        Icon(if (dir == SwipeToDismissBoxValue.StartToEnd) Icons.Default.Delete else Icons.Default.Download, contentDescription = null, tint = if (dir == SwipeToDismissBoxValue.StartToEnd) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            ) {
+                                MediaEntryRow(entry = entry, context = context, onMediaClick = { me -> when (me.type) { "photo" -> me.mediaUri?.let { u -> fullScreenPhotoUri = u; fullScreenEntryId = me.id }; "video" -> me.mediaUri?.let { u -> if (File(u).exists()) fullScreenVideoUri = u }; "audio" -> me.mediaUri?.let { u -> if (File(u).exists()) fullScreenAudioUri = u } } }, onRename = { me -> renameEntryId = me.id; renameCurrentTitle = me.textContent ?: me.type.replaceFirstChar { it.uppercase() }; showRenameDialog = true }, onMenuClick = { me -> val eu = me.mediaUri; mediaMenuState = MediaMenuState(me.id, me.textContent ?: me.type.replaceFirstChar { it.uppercase() }, me.type, biography?.fullName ?: memberName, emptyList(), if (eu != null && (eu.startsWith("http://") || eu.startsWith("https://"))) eu else null) })
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    } else {
+                        item { Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) { Text("No media yet", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp) } }
+                    }
+
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Import media", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(onClick = { mediaPhotoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, shape = RoundedCornerShape(8.dp), modifier = Modifier.weight(1f)) { Icon(Icons.Default.Add, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Photo", fontSize = 12.sp) }
+                            OutlinedButton(onClick = { mediaVideoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)) }, shape = RoundedCornerShape(8.dp), modifier = Modifier.weight(1f)) { Icon(Icons.Default.Videocam, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Video", fontSize = 12.sp) }
+                            OutlinedButton(onClick = { mediaAudioPicker.launch(arrayOf("audio/*")) }, shape = RoundedCornerShape(8.dp), modifier = Modifier.weight(1f)) { Icon(Icons.Default.Audiotrack, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Audio", fontSize = 12.sp) }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("Record media", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(onClick = { val f = File(context.cacheDir, "video_${System.currentTimeMillis()}.mp4"); captureVideoLauncher.launch(FileProvider.getUriForFile(context, "com.rekluzlabs.reminera.fileprovider", f)) }, shape = RoundedCornerShape(8.dp), modifier = Modifier.weight(1f)) { Icon(Icons.Default.Videocam, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Record Video", fontSize = 12.sp) }
+                            OutlinedButton(onClick = {
+                                if (isRecordingAudio) { audioRecorder.stop(); isRecordingAudio = false }
+                                else {
+                                    startRecordingIfPermitted {
+                                        val f = File(context.cacheDir, "audio_${System.currentTimeMillis()}.m4a")
+                                        audioRecorder.start(f)
+                                        isRecordingAudio = true
+                                        scope.launch {
+                                            val st = System.currentTimeMillis()
+                                            while (isRecordingAudio && isActive) {
+                                                recordingDuration = System.currentTimeMillis() - st
+                                                delay(100)
+                                            }
+                                            if (f.exists()) { val pu = withContext(Dispatchers.IO) { copyUriToInternal(context, Uri.fromFile(f), "m4a") }; viewModel.addStoryEntry("You", "audio", pu, null, System.currentTimeMillis(), context) }
+                                        }
+                                    }
+                                }
+                            }, shape = RoundedCornerShape(8.dp), colors = if (isRecordingAudio) ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error) else ButtonDefaults.outlinedButtonColors(), modifier = Modifier.weight(1f)) {
+                                Icon(if (isRecordingAudio) Icons.Default.Pause else Icons.Default.Audiotrack, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(if (isRecordingAudio) "Stop (${recordingDuration / 1000}s)" else "Record Audio", fontSize = 12.sp)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(40.dp))
+                    }
+                }
+            }
         }
     }
 }

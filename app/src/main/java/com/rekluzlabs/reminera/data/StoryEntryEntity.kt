@@ -13,5 +13,6 @@ data class StoryEntryEntity(
     val thumbnailUri: String? = null,
     val textContent: String?,
     val recordedAt: Long,
-    val createdAt: Long
+    val createdAt: Long,
+    val sortOrder: Int = 0
 )

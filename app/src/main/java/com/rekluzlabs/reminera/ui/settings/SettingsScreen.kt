@@ -51,6 +51,7 @@ fun SettingsScreen(
     onNavigateToThemes: () -> Unit,
     onNavigateToAi: () -> Unit = {},
     onNavigateToBackup: () -> Unit = {},
+    onNavigateToMemberBackup: () -> Unit = {},
     onNavigateToStorage: () -> Unit = {},
     onBack: () -> Unit
 ) {
@@ -113,6 +114,12 @@ fun SettingsScreen(
                         title = "Backup & Restore",
                         subtitle = "Export or import your data",
                         onClick = onNavigateToBackup
+                    )
+                    SettingsRow(
+                        icon = R.drawable.ic_backup,
+                        title = "Individual Backups",
+                        subtitle = "Back up or restore one family member at a time",
+                        onClick = onNavigateToMemberBackup
                     )
                     SettingsRow(
                         icon = R.drawable.ic_storage,

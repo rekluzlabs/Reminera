@@ -280,6 +280,336 @@ object BackupRestoreHelper {
         }
     }
 
+    suspend fun createMemberBackup(context: Context, memberId: Long, destinationUri: Uri): Boolean {
+        val database = RemineraDatabase.getInstance(context)
+
+        return withContext(Dispatchers.IO) {
+            try {
+                val stagingDir = File(context.cacheDir, "backup_staging_${System.currentTimeMillis()}")
+                stagingDir.mkdirs()
+
+                try {
+                    val member = database.familyMemberDao().getMemberById(memberId)
+                        ?: return@withContext false
+                    val group = database.familyGroupDao().getAllOrderedBySortOrderList()
+                        .find { it.id == member.groupId }
+                    val biography = database.biographyDao().getByPersonIdOnce(memberId)
+                    val sections = biography?.let {
+                        database.biographySectionDao().getByBiographyIdOnce(it.id)
+                    } ?: emptyList()
+                    val stories = biography?.let {
+                        database.storyEntryDao().getByBiographyIdOnce(it.id)
+                    } ?: emptyList()
+                    val memoryEntries = database.memoryEntryDao().getEntriesByGroupIdAndPersonTagList(member.groupId, member.name)
+                    val chapter = database.chapterExportDao().getByMemberId(memberId)
+
+                    val allMediaFiles = mutableSetOf<String>()
+
+                    memoryEntries.forEach { entry ->
+                        allMediaFiles.add(entry.localFilePath)
+                        entry.thumbnailPath?.let { allMediaFiles.add(it) }
+                        entry.secondaryMediaPath?.let { allMediaFiles.add(it) }
+                    }
+                    member.photoUri?.let { allMediaFiles.add(it) }
+                    biography?.photoUri?.let { allMediaFiles.add(it) }
+                    stories.forEach { story ->
+                        story.mediaUri?.let { allMediaFiles.add(it) }
+                        story.thumbnailUri?.let { allMediaFiles.add(it) }
+                    }
+                    chapter?.renderedPdfPath?.let { allMediaFiles.add(it) }
+
+                    val backupData = JSONObject().apply {
+                        put("app_version", "1.0")
+                        put("app_files_dir", context.filesDir.absolutePath)
+                        put("backup_timestamp", System.currentTimeMillis())
+                        put("backup_type", "member")
+                        put("member_id", memberId)
+                        put("database", JSONObject().apply {
+                            put("family_groups", JSONArray().also { arr ->
+                                group?.let { g ->
+                                    arr.put(JSONObject().apply {
+                                        put("id", g.id); put("name", g.name); put("groupType", g.groupType)
+                                        put("sortOrder", g.sortOrder); put("createdAt", g.createdAt)
+                                    })
+                                }
+                            })
+                            put("family_members", JSONArray().also { arr ->
+                                arr.put(JSONObject().apply {
+                                    put("id", member.id); put("groupId", member.groupId); put("name", member.name)
+                                    put("role", member.role); put("biography", member.biography)
+                                    put("birthDate", member.birthDate ?: JSONObject.NULL)
+                                    put("photoUri", member.photoUri ?: JSONObject.NULL)
+                                    put("sortOrder", member.sortOrder); put("createdAt", member.createdAt)
+                                })
+                            })
+                            put("memory_entries", JSONArray().also { arr ->
+                                memoryEntries.forEach { e -> arr.put(JSONObject().apply {
+                                    put("id", e.id); put("groupId", e.groupId); put("title", e.title)
+                                    put("type", e.type); put("localFilePath", e.localFilePath)
+                                    put("thumbnailPath", e.thumbnailPath ?: JSONObject.NULL)
+                                    put("personTag", e.personTag ?: JSONObject.NULL)
+                                    put("notes", e.notes ?: JSONObject.NULL)
+                                    put("dateCaptured", e.dateCaptured); put("dateAdded", e.dateAdded)
+                                    put("durationMillis", e.durationMillis ?: JSONObject.NULL)
+                                    put("isImported", e.isImported); put("uploadStatus", e.uploadStatus)
+                                    put("hostedUrl", e.hostedUrl ?: JSONObject.NULL)
+                                    put("secondaryMediaPath", e.secondaryMediaPath ?: JSONObject.NULL)
+                                    put("secondaryMediaType", e.secondaryMediaType ?: JSONObject.NULL)
+                                    put("sortOrder", e.sortOrder)
+                                }) }
+                            })
+                            put("biographies", JSONArray().also { arr ->
+                                biography?.let { b ->
+                                    arr.put(JSONObject().apply {
+                                        put("id", b.id); put("personId", b.personId); put("fullName", b.fullName)
+                                        put("relationship", b.relationship)
+                                        put("birthDate", b.birthDate ?: JSONObject.NULL)
+                                        put("familyGroupId", b.familyGroupId)
+                                        put("photoUri", b.photoUri ?: JSONObject.NULL)
+                                        put("createdAt", b.createdAt); put("updatedAt", b.updatedAt)
+                                    })
+                                }
+                            })
+                            put("biography_sections", JSONArray().also { arr ->
+                                sections.forEach { s -> arr.put(JSONObject().apply {
+                                    put("id", s.id); put("biographyId", s.biographyId)
+                                    put("sectionType", s.sectionType); put("fieldsJson", s.fieldsJson)
+                                    put("updatedAt", s.updatedAt)
+                                }) }
+                            })
+                            put("story_entries", JSONArray().also { arr ->
+                                stories.forEach { s -> arr.put(JSONObject().apply {
+                                    put("id", s.id); put("biographyId", s.biographyId)
+                                    put("contributedBy", s.contributedBy); put("type", s.type)
+                                    put("mediaUri", s.mediaUri ?: JSONObject.NULL)
+                                    put("thumbnailUri", s.thumbnailUri ?: JSONObject.NULL)
+                                    put("textContent", s.textContent ?: JSONObject.NULL)
+                                    put("recordedAt", s.recordedAt); put("createdAt", s.createdAt)
+                                }) }
+                            })
+                            put("chapter_exports", JSONArray().also { arr ->
+                                chapter?.let { c ->
+                                    arr.put(JSONObject().apply {
+                                        put("memberId", c.memberId); put("groupId", c.groupId)
+                                        put("sourceDataHash", c.sourceDataHash); put("generatedBioText", c.generatedBioText)
+                                        put("mediaManifestJson", c.mediaManifestJson); put("lastGenerated", c.lastGenerated)
+                                        put("renderedPdfPath", c.renderedPdfPath ?: JSONObject.NULL)
+                                        put("renderedPdfHash", c.renderedPdfHash ?: JSONObject.NULL)
+                                        put("biographySource", c.biographySource)
+                                        put("aiPolishedAt", c.aiPolishedAt ?: JSONObject.NULL)
+                                    })
+                                }
+                            })
+                            put("book_export_manifests", JSONArray())
+                        })
+                        put("media_files", JSONArray(allMediaFiles.filter { File(it).exists() }))
+                    }
+
+                    File(stagingDir, "database.json").writeText(backupData.toString(2))
+
+                    val mediaStaging = File(stagingDir, "media")
+                    mediaStaging.mkdirs()
+
+                    allMediaFiles.filter { File(it).exists() }.forEach { path ->
+                        val srcFile = File(path)
+                        val relPath = getRelativeMediaPath(context, path)
+                        if (relPath != null) {
+                            val destFile = File(mediaStaging, relPath)
+                            destFile.parentFile?.mkdirs()
+                            srcFile.copyTo(destFile, overwrite = true)
+                        }
+                    }
+
+                    val zipFile = File(stagingDir, "reminera_member_backup.zip")
+                    zipDirectory(stagingDir, zipFile)
+
+                    context.contentResolver.openOutputStream(destinationUri)?.use { outputStream ->
+                        FileInputStream(zipFile).use { inputStream ->
+                            inputStream.copyTo(outputStream)
+                        }
+                    }
+
+                    true
+                } finally {
+                    stagingDir.deleteRecursively()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
+    }
+
+    suspend fun restoreMemberBackup(context: Context, sourceUri: Uri): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val stagingDir = File(context.cacheDir, "restore_staging_${System.currentTimeMillis()}")
+                stagingDir.mkdirs()
+
+                try {
+                    context.contentResolver.openInputStream(sourceUri)?.use { inputStream ->
+                        ZipInputStream(inputStream).use { zipInput ->
+                            var entry = zipInput.nextEntry
+                            while (entry != null) {
+                                if (!entry.isDirectory) {
+                                    val outFile = File(stagingDir, entry.name)
+                                    outFile.parentFile?.mkdirs()
+                                    FileOutputStream(outFile).use { fos ->
+                                        zipInput.copyTo(fos)
+                                    }
+                                }
+                                entry = zipInput.nextEntry
+                            }
+                        }
+                    }
+
+                    val dbJsonFile = File(stagingDir, "database.json")
+                    if (!dbJsonFile.exists()) return@withContext false
+
+                    val backupData = JSONObject(dbJsonFile.readText())
+                    val dbData = backupData.getJSONObject("database")
+
+                    val database = RemineraDatabase.getInstance(context)
+
+                    val sourceFilesDir = backupData.optString("app_files_dir", "")
+                    val targetFilesDir = context.filesDir.absolutePath
+
+                    val groupsArr = dbData.optJSONArray("family_groups") ?: JSONArray()
+                    for (i in 0 until groupsArr.length()) {
+                        val obj = groupsArr.getJSONObject(i)
+                        val existing = database.familyGroupDao().getAllOrderedBySortOrderList()
+                            .find { it.id == obj.getLong("id") }
+                        if (existing == null) {
+                            database.familyGroupDao().insertDirect(
+                                com.rekluzlabs.reminera.data.FamilyGroupEntity(
+                                    id = obj.getLong("id"), name = obj.getString("name"),
+                                    groupType = obj.getString("groupType"), sortOrder = obj.getInt("sortOrder"),
+                                    createdAt = obj.getLong("createdAt")
+                                )
+                            )
+                        }
+                    }
+
+                    val membersArr = dbData.optJSONArray("family_members") ?: JSONArray()
+                    for (i in 0 until membersArr.length()) {
+                        val obj = membersArr.getJSONObject(i)
+                        database.familyMemberDao().insertDirect(
+                            com.rekluzlabs.reminera.data.FamilyMemberEntity(
+                                id = obj.getLong("id"), groupId = obj.getLong("groupId"),
+                                name = obj.getString("name"), role = obj.getString("role"),
+                                biography = obj.optString("biography", ""),
+                                birthDate = if (obj.isNull("birthDate")) null else obj.getLong("birthDate"),
+                                photoUri = if (obj.isNull("photoUri")) null else obj.getString("photoUri"),
+                                sortOrder = obj.optInt("sortOrder", 0),
+                                createdAt = obj.optLong("createdAt", System.currentTimeMillis())
+                            )
+                        )
+                    }
+
+                    val biosArr = dbData.optJSONArray("biographies") ?: JSONArray()
+                    for (i in 0 until biosArr.length()) {
+                        val obj = biosArr.getJSONObject(i)
+                        database.biographyDao().insertDirect(
+                            com.rekluzlabs.reminera.data.BiographyEntity(
+                                id = obj.getString("id"), personId = obj.getLong("personId"),
+                                fullName = obj.getString("fullName"), relationship = obj.getString("relationship"),
+                                birthDate = if (obj.isNull("birthDate")) null else obj.getLong("birthDate"),
+                                familyGroupId = obj.getLong("familyGroupId"),
+                                photoUri = if (obj.isNull("photoUri")) null else obj.getString("photoUri"),
+                                createdAt = obj.getLong("createdAt"), updatedAt = obj.getLong("updatedAt")
+                            )
+                        )
+                    }
+
+                    val sectionsArr = dbData.optJSONArray("biography_sections") ?: JSONArray()
+                    for (i in 0 until sectionsArr.length()) {
+                        val obj = sectionsArr.getJSONObject(i)
+                        database.biographySectionDao().insertDirect(
+                            com.rekluzlabs.reminera.data.BiographySectionEntity(
+                                id = obj.getString("id"), biographyId = obj.getString("biographyId"),
+                                sectionType = obj.getString("sectionType"), fieldsJson = obj.getString("fieldsJson"),
+                                updatedAt = obj.getLong("updatedAt")
+                            )
+                        )
+                    }
+
+                    val storiesArr = dbData.optJSONArray("story_entries") ?: JSONArray()
+                    for (i in 0 until storiesArr.length()) {
+                        val obj = storiesArr.getJSONObject(i)
+                        database.storyEntryDao().insertDirect(
+                            com.rekluzlabs.reminera.data.StoryEntryEntity(
+                                id = obj.getString("id"), biographyId = obj.getString("biographyId"),
+                                contributedBy = obj.getString("contributedBy"), type = obj.getString("type"),
+                                mediaUri = if (obj.isNull("mediaUri")) null else obj.getString("mediaUri"),
+                                thumbnailUri = if (obj.isNull("thumbnailUri")) null else obj.getString("thumbnailUri"),
+                                textContent = if (obj.isNull("textContent")) null else obj.getString("textContent"),
+                                recordedAt = obj.getLong("recordedAt"), createdAt = obj.getLong("createdAt")
+                            )
+                        )
+                    }
+
+                    val entriesArr = dbData.optJSONArray("memory_entries") ?: JSONArray()
+                    for (i in 0 until entriesArr.length()) {
+                        val obj = entriesArr.getJSONObject(i)
+                        database.memoryEntryDao().insertDirect(
+                            com.rekluzlabs.reminera.data.MemoryEntryEntity(
+                                id = obj.getString("id"), groupId = obj.optLong("groupId", 0L),
+                                title = obj.getString("title"), type = obj.getString("type"),
+                                localFilePath = obj.getString("localFilePath"),
+                                thumbnailPath = if (obj.isNull("thumbnailPath")) null else obj.getString("thumbnailPath"),
+                                personTag = if (obj.isNull("personTag")) null else obj.getString("personTag"),
+                                notes = if (obj.isNull("notes")) null else obj.getString("notes"),
+                                dateCaptured = obj.getLong("dateCaptured"), dateAdded = obj.getLong("dateAdded"),
+                                durationMillis = if (obj.isNull("durationMillis")) null else obj.getLong("durationMillis"),
+                                isImported = obj.getBoolean("isImported"),
+                                uploadStatus = obj.optString("uploadStatus", "NOT_UPLOADED"),
+                                hostedUrl = if (obj.isNull("hostedUrl")) null else obj.getString("hostedUrl"),
+                                secondaryMediaPath = if (obj.isNull("secondaryMediaPath")) null else obj.getString("secondaryMediaPath"),
+                                secondaryMediaType = if (obj.isNull("secondaryMediaType")) null else obj.getString("secondaryMediaType"),
+                                sortOrder = obj.optInt("sortOrder", 0)
+                            )
+                        )
+                    }
+
+                    val chaptersArr = dbData.optJSONArray("chapter_exports") ?: JSONArray()
+                    for (i in 0 until chaptersArr.length()) {
+                        val obj = chaptersArr.getJSONObject(i)
+                        database.chapterExportDao().upsert(
+                            com.rekluzlabs.reminera.data.ChapterExportEntity(
+                                memberId = obj.getLong("memberId"), groupId = obj.getLong("groupId"),
+                                sourceDataHash = obj.getString("sourceDataHash"),
+                                generatedBioText = obj.getString("generatedBioText"),
+                                mediaManifestJson = obj.getString("mediaManifestJson"),
+                                lastGenerated = obj.getLong("lastGenerated"),
+                                renderedPdfPath = if (obj.isNull("renderedPdfPath")) null else obj.getString("renderedPdfPath"),
+                                renderedPdfHash = if (obj.isNull("renderedPdfHash")) null else obj.getString("renderedPdfHash"),
+                                biographySource = obj.optString("biographySource", "RAW"),
+                                aiPolishedAt = if (obj.isNull("aiPolishedAt")) null else obj.getLong("aiPolishedAt")
+                            )
+                        )
+                    }
+
+                    val mediaStaging = File(stagingDir, "media")
+                    if (mediaStaging.exists()) {
+                        val filesDir = context.filesDir
+                        copyMediaFiles(mediaStaging, filesDir)
+                    }
+
+                    if (sourceFilesDir.isNotEmpty() && sourceFilesDir != targetFilesDir) {
+                        remapFilePathsInDatabase(database, sourceFilesDir, targetFilesDir)
+                    }
+
+                    true
+                } finally {
+                    stagingDir.deleteRecursively()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
+    }
+
     suspend fun clearAllData(context: Context): Boolean {
         return withContext(Dispatchers.IO) {
             try {

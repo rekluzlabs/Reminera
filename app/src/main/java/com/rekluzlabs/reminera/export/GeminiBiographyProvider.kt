@@ -15,7 +15,8 @@ class GeminiBiographyProvider(
 ) : BiographyGenerationProvider {
 
     companion object {
-        internal const val INPUT_LENGTH_CAP = 20_000
+        internal const val INPUT_LENGTH_CAP = 100_000
+        internal const val OUTPUT_TOKEN_CAP = 16_384
         private const val API_BASE_URL =
             "https://generativelanguage.googleapis.com/v1beta/models/"
     }
@@ -51,12 +52,17 @@ class GeminiBiographyProvider(
     }
 
     internal fun truncateInput(input: BiographyGenerationInput): BiographyGenerationInput {
-        val fullText = buildString {
+        val headerLen = buildString {
+            append("Name: ${input.name}\nRelationship: ${input.relationship}\n")
+            if (input.dateOfBirth != null) append("Date of birth: ${input.dateOfBirth}\n")
+        }.length
+
+        val materialLen = buildString {
             if (input.biographyText.isNotBlank()) append(input.biographyText)
-            for ((title, content) in input.sections) {
+            for ((_, content) in input.sections) {
                 if (content.isNotBlank()) {
                     if (isNotEmpty()) append("\n\n")
-                    append("$title: $content")
+                    append(content)
                 }
             }
             for (story in input.stories) {
@@ -65,15 +71,47 @@ class GeminiBiographyProvider(
                     append(story)
                 }
             }
+        }.length
+
+        if (headerLen + materialLen <= INPUT_LENGTH_CAP) return input
+
+        val overheadPerSection = 12
+        val overheadPerStory = 4
+
+        var budget = INPUT_LENGTH_CAP - headerLen - "\n\n[Some material omitted due to length limits]".length
+
+        val keptBiography = if (input.biographyText.length <= budget) {
+            budget -= input.biographyText.length
+            input.biographyText
+        } else {
+            val truncated = input.biographyText.take(budget)
+            budget = 0
+            truncated + "\n[Biography truncated]"
         }
 
-        if (fullText.length <= INPUT_LENGTH_CAP) return input
+        val keptSections = mutableListOf<Pair<String, String>>()
+        for ((title, content) in input.sections) {
+            if (content.isBlank()) continue
+            val needed = overheadPerSection + content.length
+            if (needed <= budget) {
+                keptSections.add(title to content)
+                budget -= needed
+            }
+        }
 
-        val truncated = fullText.take(INPUT_LENGTH_CAP) + "\n\n[Content truncated due to length limits]"
+        val keptStories = mutableListOf<String>()
+        for (story in input.stories) {
+            val needed = overheadPerStory + story.length
+            if (needed <= budget) {
+                keptStories.add(story)
+                budget -= needed
+            }
+        }
+
         return input.copy(
-            biographyText = truncated,
-            sections = emptyList(),
-            stories = emptyList()
+            biographyText = keptBiography,
+            sections = keptSections,
+            stories = keptStories
         )
     }
 
@@ -114,6 +152,7 @@ Rules:
 - Preserve all factual details exactly as provided — do not invent or embellish facts.
 - Organize naturally: opening about the person, life events in logical order, closing reflections.
 - Use a warm, respectful tone appropriate for a family keepsake book.
+- Be comprehensive and detailed. Use ALL the provided material. Write a full-length biography chapter, not a short summary.
 - If the material is sparse, work with what is provided — do not pad with filler.
 
 --- Material ---
@@ -141,6 +180,10 @@ $material
                             })
                         })
                     })
+                })
+                put("generationConfig", JSONObject().apply {
+                    put("maxOutputTokens", OUTPUT_TOKEN_CAP)
+                    put("temperature", 0.7)
                 })
             }
 

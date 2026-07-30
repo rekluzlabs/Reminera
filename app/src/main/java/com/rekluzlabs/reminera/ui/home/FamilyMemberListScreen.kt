@@ -342,16 +342,7 @@ private fun MemberItemCard(
     val memberPhoto = remember(member.photoUri) {
         member.photoUri?.let { uriStr ->
             try {
-                val file = File(uriStr)
-                if (file.exists()) {
-                    val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
-                    BitmapFactory.decodeFile(file.absolutePath, opts)
-                } else {
-                    val uri = Uri.parse(uriStr)
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        BitmapFactory.decodeStream(input)
-                    }
-                }
+                com.rekluzlabs.reminera.util.ImageUtils.loadBitmapWithExifOrientation(context, uriStr, 480)
             } catch (_: Exception) { null }
         }
     }

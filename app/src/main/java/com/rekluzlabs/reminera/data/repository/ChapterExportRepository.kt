@@ -85,18 +85,15 @@ class ChapterExportRepository(
         val sectionPairs = sections.map { section ->
             val title = section.sectionType.replaceFirstChar { it.uppercase() }
             val content = try {
-                val cleaned = section.fieldsJson.trim().removeSurrounding("{", "}")
-                if (cleaned.isBlank()) ""
-                else cleaned.split(",").mapNotNull { pair ->
-                    val parts = pair.split(":", limit = 2)
-                    if (parts.size == 2) parts[1].trim().removeSurrounding("\"") else null
-                }.joinToString(" ")
+                val json = org.json.JSONObject(section.fieldsJson)
+                val values = json.keys().asSequence().map { json.optString(it, "") }.filter { it.isNotBlank() }.toList()
+                values.joinToString(" ")
             } catch (_: Exception) { "" }
             title to content
         }
 
         val storyTexts = stories
-            .filter { it.type == "text" && !it.textContent.isNullOrBlank() }
+            .filter { !it.textContent.isNullOrBlank() }
             .map { it.textContent!!.trim() }
 
         return BiographyGenerationInput(
