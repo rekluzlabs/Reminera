@@ -14,6 +14,7 @@ Audio Recordings: Capture voice stories, oral histories, and interviews directly
 Video Clips: Record video memories using CameraX.
 Narratives & Captions: Write detailed story accounts and add individual captions and ordering to media assets.
 Family Profiles (Planned): Organize memories by relative, keeping timelines, biographies, key dates, and relationships clear.
+Family Tree Visualization (Planned): An interactive, zoomable/pannable family tree graph linking family member profiles by relationship (parent, child, spouse, sibling). Each node displays the member's photo; pinch to zoom into a section of the tree, pan to browse it, and tap a photo to open that member's full profile. Includes search-to-locate for jumping directly to a specific relative in larger trees.
 Print-Ready Book Export (Future Phase): Layout stories, photos, and embedded QR codes into print-ready PDF memory books. Scan QR codes on printed pages to instantly play linked audio/video clips hosted in your personal cloud storage.
 
 None of the features above are guaranteed to ship in their current described form — this is a solo indie project and the design may change as it's built.
@@ -27,12 +28,13 @@ UI Framework: Jetpack Compose
 Architecture: MVVM + Clean Architecture
 Database: Room DB with @TypeConverter support and custom relational wrappers (MemoryWithMedia)
 Camera & Capture: CameraX & MediaRecorder
-Export Engine (Phase 2): Native Android PdfDocument, Canvas, and ZXing QR code generation
+Export Engine (Phase 3): Native Android PdfDocument, Canvas, and ZXing QR code generation
 Data Model Overview (In Progress)
 
 Initial schema design has started; entities are subject to change as features are implemented.
 
 FamilyMemberEntity: Stores relative profiles, relationships, birth dates, avatars, and biographies.
+FamilyRelationshipEntity (Planned): Links two FamilyMemberEntity records with a relationship type (parent, child, spouse, sibling), powering the family tree graph.
 MemoryEntity: Represents a specific memory or story event linked to a family member.
 MediaItemEntity: Individual media assets linked to a memory, supporting type-scoped displayOrder, caption, and optional remoteShareUrl for future book export.
 Development Roadmap
@@ -44,7 +46,13 @@ Phase 1: Local Memory Preservation (Current Focus)
  CameraX audio/video capture integration
  System Photo Picker import integration
  Timeline & memory filter views
-Phase 2: Physical Book & QR Linkage (Future)
+Phase 2: Family Tree Visualization (Future)
+ Relationship data model linking family members (parent/child/spouse/sibling)
+ Interactive tree layout with generational grouping
+ Pinch-to-zoom and pan navigation across the graph
+ Tap a member's photo to open their profile page
+ Search-to-locate for finding a specific relative within larger trees
+Phase 3: Physical Book & QR Linkage (Future)
  Dynamic high-DPI (300 DPI) PDF layout engine with pagination
  BYOK cloud storage integration (Google Drive / Dropbox)
  ZXing QR matrix generation for linked cloud media
