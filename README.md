@@ -7,14 +7,20 @@ Status: Very Early Alpha. Reminera is in very early development. Most features d
 
 Vision & Planned Features
 Offline-First & Private: All personal data (narratives, family profiles, historical photographs, audio clips, and video recordings) is intended to stay strictly local on your device. 
+
 No required accounts, no tracking, and no external server dependency although online storage will be an backup option if desired.
+
 Rich Storytelling Canvas (Planned): Attach multiple mixed-media items to any single memory:
+
 Historical Photos: Import digitized family photographs via the native Android Photo Picker.
 Audio Recordings: Capture voice stories, oral histories, and interviews directly in-app.
 Video Clips: Record video memories using CameraX.
+
 Narratives & Captions: Write detailed story accounts and add individual captions and ordering to media assets.
 Family Profiles (Planned): Organize memories by relative, keeping timelines, biographies, key dates, and relationships clear.
+
 Family Tree Visualization (Planned): An interactive, zoomable/pannable family tree graph linking family member profiles by relationship (parent, child, spouse, sibling). Each node displays the member's photo; pinch to zoom into a section of the tree, pan to browse it, and tap a photo to open that member's full profile. Includes search-to-locate for jumping directly to a specific relative in larger trees.
+
 Print-Ready Book Export (Future Phase): Layout stories, photos, and embedded QR codes into print-ready PDF memory books. Scan QR codes on printed pages to instantly play linked audio/video clips hosted in your personal cloud storage.
 
 None of the features above are guaranteed to ship in their current described form — this is a solo indie project and the design may change as it's built.
