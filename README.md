@@ -38,7 +38,7 @@ FamilyRelationshipEntity (Planned): Links two FamilyMemberEntity records with a 
 MemoryEntity: Represents a specific memory or story event linked to a family member.
 MediaItemEntity: Individual media assets linked to a memory, supporting type-scoped displayOrder, caption, and optional remoteShareUrl for future book export.
 Development Roadmap
-Phase 1: Local Memory Preservation (Current Focus)
+<br>Phase 1: Local Memory Preservation (Current Focus)
  Initial rough alpha build released
  Room Database architecture setup & entity schema design
  Family member profile creation and management
@@ -46,13 +46,13 @@ Phase 1: Local Memory Preservation (Current Focus)
  CameraX audio/video capture integration
  System Photo Picker import integration
  Timeline & memory filter views
-Phase 2: Family Tree Visualization (Future)
+<br>Phase 2: Family Tree Visualization (Future)
  Relationship data model linking family members (parent/child/spouse/sibling)
  Interactive tree layout with generational grouping
  Pinch-to-zoom and pan navigation across the graph
  Tap a member's photo to open their profile page
  Search-to-locate for finding a specific relative within larger trees
-Phase 3: Physical Book & QR Linkage (Future)
+<br>Phase 3: Physical Book & QR Linkage (Future)
  Dynamic high-DPI (300 DPI) PDF layout engine with pagination
  BYOK cloud storage integration (Google Drive / Dropbox)
  ZXing QR matrix generation for linked cloud media
