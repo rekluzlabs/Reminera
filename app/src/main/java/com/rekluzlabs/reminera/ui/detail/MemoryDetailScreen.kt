@@ -33,7 +33,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.SaveAlt
-import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -237,7 +237,7 @@ fun MemoryDetailScreen(
                             .fillMaxWidth()
                             .height(48.dp)
                     ) {
-                        Icon(Icons.Default.DriveFileMove, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))
                         Text("Move to Group", fontWeight = FontWeight.Bold)
                     }
@@ -303,11 +303,12 @@ private fun ViewMediaPreview(
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                if (entry.type != "VIDEO") Modifier.clickable(onClick = onClick)
+                if (!entry.type.equals("VIDEO", ignoreCase = true)) Modifier.clickable(onClick = onClick)
                 else Modifier
             )
     ) {
-        when (entry.type) {
+        val type = entry.type.uppercase()
+        when (type) {
             "PHOTO" -> ViewPhotoPreview(uri, entry.secondaryMediaType, entry.secondaryMediaPath)
             "VIDEO" -> ViewVideoPreview(uri, shouldPause, onFullScreenClick = onClick)
             "AUDIO" -> ViewAudioPreview(uri, entry.title, shouldPause)
@@ -333,6 +334,7 @@ private fun ViewPhotoPreview(
     }
 
     val hasSecondaryMedia = !secondaryMediaType.isNullOrBlank() && !secondaryMediaPath.isNullOrBlank()
+    val secondaryType = secondaryMediaType?.uppercase()
 
     Box(modifier = Modifier.fillMaxWidth()) {
         if (bitmap != null) {
@@ -373,14 +375,14 @@ private fun ViewPhotoPreview(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = if (secondaryMediaType == "VIDEO") Icons.Default.Videocam else Icons.Default.Audiotrack,
+                        imageVector = if (secondaryType == "VIDEO") Icons.Default.Videocam else Icons.Default.Audiotrack,
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = if (secondaryMediaType == "VIDEO") "Video" else "Audio",
+                        text = if (secondaryType == "VIDEO") "Video" else "Audio",
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
@@ -417,7 +419,14 @@ private fun ViewVideoPreview(uri: Uri, shouldPause: Boolean, onFullScreenClick: 
         modifier = Modifier
             .fillMaxWidth()
             .height(300.dp)
-            .background(Color.Black),
+            .background(Color.Black)
+            .clickable {
+                if (!playbackManager.isPrepared.value) {
+                    playbackManager.prepareAndPlay(uri)
+                } else {
+                    playbackManager.togglePlayPause()
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         AndroidView(

@@ -77,7 +77,7 @@ object ChapterPdfRenderer {
                 webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
             }
 
-            val wv = webView ?: return@withContext RenderResult.Failure("WebView not created")
+            val wv = webView
             val contentHeight = suspendCancellableCoroutine<Int> { cont ->
                 var attempts = 0
                 wv.viewTreeObserver.addOnPreDrawListener(

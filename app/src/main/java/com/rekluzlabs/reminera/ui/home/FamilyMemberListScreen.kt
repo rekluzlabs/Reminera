@@ -45,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -75,6 +76,10 @@ import com.rekluzlabs.reminera.data.StoryEntryDao
 import com.rekluzlabs.reminera.data.repository.ChapterExportRepository
 import com.rekluzlabs.reminera.export.ChapterHtmlTemplateBuilder
 import com.rekluzlabs.reminera.export.ChapterPdfRenderer
+import com.rekluzlabs.reminera.ui.export.BookExportViewModel
+import com.rekluzlabs.reminera.ui.export.ExportProgressDialog
+import com.rekluzlabs.reminera.export.BookAssembler
+import com.rekluzlabs.reminera.export.ExportProgress
 import com.rekluzlabs.reminera.ui.editor.ImageEditorScreen
 import com.rekluzlabs.reminera.util.copyUriToInternal
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +92,7 @@ import java.io.File
 fun FamilyMemberListScreen(
     groupId: Long,
     viewModel: RemineraViewModel,
+    exportViewModel: BookExportViewModel,
     onBack: () -> Unit,
     onMemberClick: (FamilyMemberEntity) -> Unit,
     onSettingsClick: () -> Unit = {}
@@ -99,6 +105,9 @@ fun FamilyMemberListScreen(
     val currentGroup = allGroups.find { it.id == groupId }
     val membersState = viewModel.getMembersByGroupId(groupId).collectAsState(initial = emptyList())
     val members = membersState.value
+
+    val exportProgress by exportViewModel.progress.collectAsState()
+    val exportResult by exportViewModel.exportResult.collectAsState()
 
     var showAddMemberSheet by remember { mutableStateOf(false) }
     var showEditMemberSheet by remember { mutableStateOf<FamilyMemberEntity?>(null) }
@@ -149,6 +158,14 @@ fun FamilyMemberListScreen(
                             modifier = Modifier.padding(start = 4.dp, top = 2.dp)
                         )
                     }
+                }
+
+                IconButton(onClick = { exportViewModel.exportBook(groupId) }) {
+                    Icon(
+                        imageVector = Icons.Default.PictureAsPdf,
+                        contentDescription = "Export Book",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
 
                 IconButton(onClick = onSettingsClick) {
@@ -325,6 +342,28 @@ fun FamilyMemberListScreen(
                 }
             }
         )
+    }
+
+    exportProgress?.let { progress ->
+        ExportProgressDialog(progress = progress)
+    }
+
+    LaunchedEffect(exportResult) {
+        exportResult?.let { result ->
+            if (result is BookAssembler.AssembleResult.Success) {
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "com.rekluzlabs.reminera.fileprovider",
+                    result.outputFile
+                )
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/pdf")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(intent)
+            }
+            exportViewModel.clearResult()
+        }
     }
 }
 

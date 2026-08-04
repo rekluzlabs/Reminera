@@ -13,7 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.AlertDialog
@@ -72,7 +72,7 @@ fun MediaItemMenuSheet(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            val typeLabel = when (menuState.entryType) {
+            val typeLabel = when (menuState.entryType.uppercase()) {
                 "VIDEO" -> "video"
                 "AUDIO" -> "audio"
                 else -> "photo"
@@ -97,7 +97,7 @@ fun MediaItemMenuSheet(
             }
 
             MediaMenuAction(
-                icon = Icons.Default.DriveFileMove,
+                icon = Icons.AutoMirrored.Filled.DriveFileMove,
                 label = "Move to another member",
                 onClick = {
                     showMoveDialog = true

@@ -71,6 +71,7 @@ fun FullScreenMediaViewer(
     entry: MemoryEntryEntity,
     onBack: () -> Unit
 ) {
+    androidx.activity.compose.BackHandler(onBack = onBack)
     val file = remember(entry.localFilePath) { File(entry.localFilePath) }
     if (!file.exists()) {
         onBack()
@@ -84,7 +85,8 @@ fun FullScreenMediaViewer(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        when (entry.type) {
+        val type = entry.type.uppercase()
+        when (type) {
             "PHOTO" -> FullScreenPhoto(uri, entry)
             "VIDEO" -> FullScreenVideo(uri)
             "AUDIO" -> FullScreenAudio(uri, entry.title)
@@ -120,7 +122,7 @@ private fun FullScreenPhoto(uri: Uri, entry: MemoryEntryEntity) {
     }
 
     val secondaryPath = entry.secondaryMediaPath
-    val secondaryType = entry.secondaryMediaType
+    val secondaryType = entry.secondaryMediaType?.uppercase()
     var showingSecondaryVideo by remember(entry.id) { mutableStateOf(false) }
 
     if (showingSecondaryVideo && secondaryType == "VIDEO" && !secondaryPath.isNullOrBlank()) {

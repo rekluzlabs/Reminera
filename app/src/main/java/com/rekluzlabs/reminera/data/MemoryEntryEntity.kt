@@ -1,9 +1,12 @@
 package com.rekluzlabs.reminera.data
 
+import android.os.Parcelable
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
+import kotlinx.parcelize.Parcelize
 
+@Parcelize
 @Entity(tableName = "memory_entries")
 data class MemoryEntryEntity(
     @PrimaryKey
@@ -27,7 +30,7 @@ data class MemoryEntryEntity(
     val secondaryMediaPath: String? = null,
     val secondaryMediaType: String? = null,  // "AUDIO" or "VIDEO"
     val sortOrder: Int = 0
-)
+) : Parcelable
 
 object Converters {
     @TypeConverter

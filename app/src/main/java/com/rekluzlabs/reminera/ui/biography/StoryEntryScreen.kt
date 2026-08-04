@@ -31,7 +31,7 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Videocam
@@ -141,7 +141,7 @@ fun StoryEntryScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
-                            imageVector = Icons.Default.MenuBook,
+                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                             modifier = Modifier.size(64.dp)
@@ -416,7 +416,7 @@ private fun FallbackThumbnail(entry: StoryEntryEntity, modifier: Modifier) {
     val icon = when (entry.type) {
         "audio" -> Icons.Default.Audiotrack
         "video" -> Icons.Default.Videocam
-        "imported" -> Icons.Default.MenuBook
+        "imported" -> Icons.AutoMirrored.Filled.MenuBook
         else -> Icons.Default.TextFields
     }
     Box(

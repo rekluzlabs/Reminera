@@ -1,8 +1,11 @@
 package com.rekluzlabs.reminera.data
 
+import android.os.Parcelable
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import kotlinx.parcelize.Parcelize
 
+@Parcelize
 @Entity(tableName = "story_entries")
 data class StoryEntryEntity(
     @PrimaryKey val id: String,
@@ -15,4 +18,4 @@ data class StoryEntryEntity(
     val recordedAt: Long,
     val createdAt: Long,
     val sortOrder: Int = 0
-)
+) : Parcelable

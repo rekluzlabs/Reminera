@@ -34,7 +34,8 @@ object BookAssembler {
         manifestId: Long,
         manifestDao: BookExportManifestDao,
         memberDao: FamilyMemberDao,
-        renderCacheRepository: ChapterRenderCacheRepository
+        renderCacheRepository: ChapterRenderCacheRepository,
+        onProgress: ((current: Int, total: Int, stage: ExportStage, elapsed: Long?) -> Unit)? = null
     ): AssembleResult = withContext(Dispatchers.Main) {
         val exportDir = File(context.filesDir, "exports/books").also { it.mkdirs() }
         var mergedDoc: PDDocument? = null
@@ -50,10 +51,18 @@ object BookAssembler {
             }
 
             val chapterFiles = mutableListOf<File>()
-            for (memberId in memberIds) {
+            for ((index, memberId) in memberIds.withIndex()) {
+                val start = System.currentTimeMillis()
+                onProgress?.invoke(index, memberIds.size, ExportStage.RENDERING, null)
+                
                 val file = renderCacheRepository.ensureRenderedChapter(memberId)
                 chapterFiles.add(file)
+                
+                val elapsed = System.currentTimeMillis() - start
+                onProgress?.invoke(index + 1, memberIds.size, ExportStage.RENDERING, elapsed)
             }
+
+            onProgress?.invoke(0, 1, ExportStage.ASSEMBLING, null)
 
             val chapterPageCounts = mutableListOf<Int>()
             for (file in chapterFiles) {
@@ -169,6 +178,7 @@ object BookAssembler {
             val outputFile = File(exportDir, "${manifestId}_${slug}.pdf")
             mergedDoc.save(outputFile)
 
+            onProgress?.invoke(1, 1, ExportStage.ASSEMBLING, null)
             AssembleResult.Success(outputFile)
         } catch (e: Exception) {
             AssembleResult.Failure(e.message ?: "Unknown assembly error")

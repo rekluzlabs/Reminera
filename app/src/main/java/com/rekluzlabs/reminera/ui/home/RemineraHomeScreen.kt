@@ -142,15 +142,11 @@ fun RemineraHomeScreen(
     groupId: Long,
     memberId: Long,
     viewModel: RemineraViewModel,
-    themeManager: ThemeManager? = null,
     onBack: () -> Unit = {},
     onSettingsClick: () -> Unit = {}
 ) {
     var selectedEntry by rememberSaveable { mutableStateOf<MemoryEntryEntity?>(null) }
     var editingEntry by rememberSaveable { mutableStateOf<MemoryEntryEntity?>(null) }
-    var showSettings by remember { mutableStateOf(false) }
-    var settingsSection by remember { mutableStateOf("main") }
-    var themeMode by rememberSaveable { mutableStateOf(themeManager?.getThemeMode() ?: ThemeMode.LIGHT) }
     var editingName by remember { mutableStateOf(false) }
     var editingBio by remember { mutableStateOf(false) }
     var draftName by remember { mutableStateOf("") }
@@ -221,36 +217,6 @@ fun RemineraHomeScreen(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     when {
-        showSettings -> {
-            BackHandler {
-                if (settingsSection == "themes" || settingsSection == "ai") {
-                    settingsSection = "main"
-                } else {
-                    showSettings = false
-                }
-            }
-            if (settingsSection == "themes") {
-                ThemeSettingsScreen(
-                    currentTheme = themeMode,
-                    onThemeSelected = { mode ->
-                        themeMode = mode
-                        themeManager?.setThemeMode(mode)
-                    },
-                    onBack = { settingsSection = "main" }
-                )
-            } else if (settingsSection == "ai") {
-                AiSettingsScreen(
-                    onBack = { settingsSection = "main" }
-                )
-            } else {
-                SettingsScreen(
-                    currentTheme = themeMode,
-                    onNavigateToThemes = { settingsSection = "themes" },
-                    onNavigateToAi = { settingsSection = "ai" },
-                    onBack = { showSettings = false }
-                )
-            }
-        }
         editingEntry != null -> {
             val entry = editingEntry!!
             BackHandler { editingEntry = null }
@@ -478,10 +444,7 @@ fun RemineraHomeScreen(
                                         )
                                     }
                                 }
-                                IconButton(onClick = {
-                                    showSettings = true
-                                    onSettingsClick()
-                                }) {
+                                IconButton(onClick = onSettingsClick) {
                                     Icon(
                                         imageVector = Icons.Default.Settings,
                                         contentDescription = "Settings",
@@ -982,7 +945,7 @@ private fun MemoryEntryCard(
                 try { BitmapFactory.decodeFile(thumbFile.absolutePath) } catch (_: Exception) { null }
             } else null
         } else if (!file.exists()) null
-        else when (entry.type) {
+        else when (entry.type.uppercase()) {
             "PHOTO" -> {
                 val opts = BitmapFactory.Options().apply { inSampleSize = 4 }
                 try { BitmapFactory.decodeFile(file.absolutePath, opts) } catch (_: Exception) { null }
@@ -1049,7 +1012,7 @@ private fun MemoryEntryCard(
                     modifier = Modifier.size(48.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    when (entry.type) {
+                    when (entry.type.uppercase()) {
                         "PHOTO" -> {
                             Box(modifier = Modifier.size(48.dp)) {
                                 if (thumbBitmap != null) {
@@ -1079,8 +1042,8 @@ private fun MemoryEntryCard(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = if (entry.secondaryMediaType == "VIDEO") Icons.Default.Videocam else Icons.Default.Audiotrack,
-                                            contentDescription = if (entry.secondaryMediaType == "VIDEO") "Has attached video" else "Has attached audio",
+                                            imageVector = if (entry.secondaryMediaType.uppercase() == "VIDEO") Icons.Default.Videocam else Icons.Default.Audiotrack,
+                                            contentDescription = if (entry.secondaryMediaType.uppercase() == "VIDEO") "Has attached video" else "Has attached audio",
                                             tint = Color.White,
                                             modifier = Modifier.size(12.dp)
                                         )

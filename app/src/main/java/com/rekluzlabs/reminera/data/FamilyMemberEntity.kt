@@ -1,10 +1,13 @@
 package com.rekluzlabs.reminera.data
 
+import android.os.Parcelable
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.parcelize.Parcelize
 
+@Parcelize
 @Entity(
     tableName = "family_members",
     foreignKeys = [
@@ -28,4 +31,4 @@ data class FamilyMemberEntity(
     val photoUri: String? = null,
     val sortOrder: Int = 0,
     val createdAt: Long = System.currentTimeMillis()
-)
+) : Parcelable

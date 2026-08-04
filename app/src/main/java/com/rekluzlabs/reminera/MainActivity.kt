@@ -27,10 +27,15 @@ import com.rekluzlabs.reminera.data.repository.BiographyRepository
 import com.rekluzlabs.reminera.data.repository.ChapterExportRepository
 import com.rekluzlabs.reminera.data.repository.FamilyMemberRepository
 import com.rekluzlabs.reminera.data.repository.MemoryEntryRepository
+import com.rekluzlabs.reminera.data.repository.BookExportManifestRepository
+import com.rekluzlabs.reminera.data.repository.ChapterRenderCacheRepository
+import com.rekluzlabs.reminera.export.PdfExportManager
 import com.rekluzlabs.reminera.ui.biography.BiographyScreen
 import com.rekluzlabs.reminera.ui.biography.BiographyViewModel
 import com.rekluzlabs.reminera.ui.biography.BiographyViewModelFactory
 import com.rekluzlabs.reminera.ui.biography.StoryEntryScreen
+import com.rekluzlabs.reminera.ui.export.BookExportViewModel
+import com.rekluzlabs.reminera.ui.export.BookExportViewModelFactory
 import com.rekluzlabs.reminera.ui.familygroups.FamilyGroupsScreen
 import com.rekluzlabs.reminera.ui.familygroups.FamilyGroupsViewModelFactory
 import com.rekluzlabs.reminera.ui.home.FamilyMemberListScreen
@@ -188,9 +193,44 @@ private fun RemineraNavHost(
             arguments = listOf(navArgument("groupId") { type = NavType.LongType })
         ) { backStackEntry ->
             val groupId = backStackEntry.arguments?.getLong("groupId") ?: return@composable
+            val context = LocalContext.current
+            val database = remember { RemineraDatabase.getInstance(context) }
+            val chapterExportRepo = remember {
+                ChapterExportRepository(
+                    chapterDao = database.chapterExportDao(),
+                    memberDao = database.familyMemberDao(),
+                    biographyDao = database.biographyDao(),
+                    sectionDao = database.biographySectionDao(),
+                    storyDao = database.storyEntryDao(),
+                    memoryDao = database.memoryEntryDao()
+                )
+            }
+            val renderCacheRepo = remember {
+                ChapterRenderCacheRepository(
+                    context = context,
+                    chapterDao = database.chapterExportDao(),
+                    chapterExportRepository = chapterExportRepo,
+                    memberDao = database.familyMemberDao(),
+                    memoryDao = database.memoryEntryDao()
+                )
+            }
+            val exportManager = remember {
+                PdfExportManager(
+                    context = context,
+                    manifestDao = database.bookExportManifestDao(),
+                    memberDao = database.familyMemberDao(),
+                    renderCacheRepository = renderCacheRepo
+                )
+            }
+            val manifestRepo = remember { BookExportManifestRepository(database.bookExportManifestDao()) }
+            val exportViewModel: BookExportViewModel = viewModel(
+                factory = BookExportViewModelFactory(exportManager, manifestRepo)
+            )
+
             FamilyMemberListScreen(
                 groupId = groupId,
                 viewModel = viewModel,
+                exportViewModel = exportViewModel,
                 onBack = { navController.popBackStack() },
                 onMemberClick = { member ->
                     navController.navigate("biography/${groupId}/${member.id}")
@@ -267,6 +307,24 @@ private fun RemineraNavHost(
                 biographyId = biographyId,
                 viewModel = bioViewModel,
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = "member/{groupId}/{personId}",
+            arguments = listOf(
+                navArgument("groupId") { type = NavType.LongType },
+                navArgument("personId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+            val groupId = backStackEntry.arguments?.getLong("groupId") ?: return@composable
+            val personId = backStackEntry.arguments?.getLong("personId") ?: return@composable
+            RemineraHomeScreen(
+                groupId = groupId,
+                memberId = personId,
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onSettingsClick = onSettingsClick
             )
         }
 

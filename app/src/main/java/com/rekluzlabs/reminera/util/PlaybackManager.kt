@@ -136,7 +136,11 @@ class PlaybackManager(private val context: Context) {
 
     fun release() {
         positionUpdateJob?.cancel()
-        exoPlayer?.release()
+        positionUpdateJob = null
+        exoPlayer?.let {
+            it.stop()
+            it.release()
+        }
         exoPlayer = null
         _isPlaying.value = false
         _currentPosition.value = 0f

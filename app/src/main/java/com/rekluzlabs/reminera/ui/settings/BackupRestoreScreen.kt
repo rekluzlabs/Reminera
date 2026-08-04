@@ -31,6 +31,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -78,9 +79,9 @@ fun BackupRestoreScreen(
     ) { uri ->
         if (uri != null) {
             scope.launch {
-                backupState = ProgressState.Running("Creating backup...")
-                val success = BackupRestoreHelper.createBackup(context, uri)
-                backupState = if (success) ProgressState.Success else ProgressState.Error("Backup failed. Please try again.")
+                BackupRestoreHelper.createBackup(context, uri) { newState ->
+                    backupState = newState
+                }
             }
         }
     }
@@ -135,9 +136,9 @@ fun BackupRestoreScreen(
                         pendingRestoreUri = null
                         if (uri != null) {
                             scope.launch {
-                                restoreState = ProgressState.Running("Restoring backup...")
-                                val success = BackupRestoreHelper.restoreBackup(context, uri)
-                                restoreState = if (success) ProgressState.Success else ProgressState.Error("Restore failed. The backup file may be corrupted.")
+                                BackupRestoreHelper.restoreBackup(context, uri) { newState ->
+                                    restoreState = newState
+                                }
                             }
                         }
                     },
@@ -296,32 +297,68 @@ fun BackupRestoreScreen(
     }
 
     if (backupState is ProgressState.Running) {
+        val state = backupState as ProgressState.Running
         AlertDialog(
             onDismissRequest = {},
             icon = {
-                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                if (state.progress >= 0f) {
+                    LinearProgressIndicator(
+                        progress = { state.progress },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    )
+                } else {
+                    CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                }
             },
             title = {
                 Text("Backup in progress", fontWeight = FontWeight.Bold)
             },
             text = {
-                Text("Please be patient. Creating compressed archive of all your data. This may take a while for large backups.")
+                Column {
+                    Text(state.message)
+                    if (state.detail != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = state.detail,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             },
             confirmButton = {}
         )
     }
 
     if (restoreState is ProgressState.Running) {
+        val state = restoreState as ProgressState.Running
         AlertDialog(
             onDismissRequest = {},
             icon = {
-                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                if (state.progress >= 0f) {
+                    LinearProgressIndicator(
+                        progress = { state.progress },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    )
+                } else {
+                    CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                }
             },
             title = {
                 Text("Restore in progress", fontWeight = FontWeight.Bold)
             },
             text = {
-                Text("Please be patient. Extracting and restoring your data. This may take a while for large backups.")
+                Column {
+                    Text(state.message)
+                    if (state.detail != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = state.detail,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             },
             confirmButton = {}
         )

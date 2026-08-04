@@ -34,6 +34,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -138,10 +139,9 @@ fun MemberBackupScreen(
         if (uri != null && memberId != null) {
             backupTargetMemberId = null
             scope.launch {
-                backupState = BackupRestoreHelper.ProgressState.Running("Creating backup...")
-                val success = BackupRestoreHelper.createMemberBackup(context, memberId, uri)
-                backupState = if (success) BackupRestoreHelper.ProgressState.Success
-                else BackupRestoreHelper.ProgressState.Error("Backup failed. Please try again.")
+                BackupRestoreHelper.createMemberBackup(context, memberId, uri) { newState ->
+                    backupState = newState
+                }
             }
         }
     }
@@ -175,10 +175,9 @@ fun MemberBackupScreen(
                     pendingRestoreUri = null
                     if (uri != null) {
                         scope.launch {
-                            restoreState = BackupRestoreHelper.ProgressState.Running("Restoring backup...")
-                            val success = BackupRestoreHelper.restoreMemberBackup(context, uri)
-                            restoreState = if (success) BackupRestoreHelper.ProgressState.Success
-                            else BackupRestoreHelper.ProgressState.Error("Restore failed. The backup file may be corrupted.")
+                            BackupRestoreHelper.restoreMemberBackup(context, uri) { newState ->
+                                restoreState = newState
+                            }
                         }
                     }
                 }) {
@@ -194,11 +193,33 @@ fun MemberBackupScreen(
     }
 
     if (backupState is BackupRestoreHelper.ProgressState.Running) {
+        val state = backupState as BackupRestoreHelper.ProgressState.Running
         AlertDialog(
             onDismissRequest = {},
-            icon = { CircularProgressIndicator(modifier = Modifier.size(32.dp)) },
+            icon = {
+                if (state.progress >= 0f) {
+                    LinearProgressIndicator(
+                        progress = { state.progress },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    )
+                } else {
+                    CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                }
+            },
             title = { Text("Backup in progress", fontWeight = FontWeight.Bold) },
-            text = { Text("Creating backup of this member's data and media. Please wait.") },
+            text = {
+                Column {
+                    Text(state.message)
+                    if (state.detail != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = state.detail,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
             confirmButton = {}
         )
     }
@@ -223,11 +244,33 @@ fun MemberBackupScreen(
     }
 
     if (restoreState is BackupRestoreHelper.ProgressState.Running) {
+        val state = restoreState as BackupRestoreHelper.ProgressState.Running
         AlertDialog(
             onDismissRequest = {},
-            icon = { CircularProgressIndicator(modifier = Modifier.size(32.dp)) },
+            icon = {
+                if (state.progress >= 0f) {
+                    LinearProgressIndicator(
+                        progress = { state.progress },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                    )
+                } else {
+                    CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                }
+            },
             title = { Text("Restore in progress", fontWeight = FontWeight.Bold) },
-            text = { Text("Restoring member data from backup. Please wait.") },
+            text = {
+                Column {
+                    Text(state.message)
+                    if (state.detail != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = state.detail,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
             confirmButton = {}
         )
     }
